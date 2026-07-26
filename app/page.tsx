@@ -4,11 +4,39 @@ import { useMemo, useState } from "react";
 
 type View = "today" | "studies" | "progress" | "journal";
 type MissionStatus = "pending" | "active" | "done";
+type TaskState = "today" | "upcoming" | "done";
+
+type Task = {
+  id: number;
+  title: string;
+  subject: string;
+  due: string;
+  type: "Tarea" | "Examen" | "Práctica";
+  state: TaskState;
+};
+
+type Skill = {
+  name: string;
+  level: number;
+  xp: number;
+  next: number;
+  evidence: string;
+  focus: string;
+};
+
+type AttributeGroup = {
+  name: string;
+  level: number;
+  icon: string;
+  color: string;
+  description: string;
+  skills: Skill[];
+};
 
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "Hoy", icon: "✦" },
-  { id: "studies", label: "Estudios", icon: "◇" },
-  { id: "progress", label: "Progreso", icon: "↗" },
+  { id: "studies", label: "Planificador", icon: "▦" },
+  { id: "progress", label: "Habilidades", icon: "⌁" },
   { id: "journal", label: "Diario", icon: "✎" },
 ];
 
@@ -26,21 +54,229 @@ const subjects = [
     kind: "Práctica",
     progress: 68,
     next: "Examen · viernes",
-    color: "#55b889",
+    tasks: 3,
+    color: "#83a8d8",
   },
   {
     name: "Contratación Pública",
     kind: "Teórica",
     progress: 42,
     next: "Quiz · 30 jul",
-    color: "#d8b76d",
+    tasks: 2,
+    color: "#d3ac66",
   },
   {
     name: "Inglés B1",
     kind: "Mixta",
     progress: 54,
     next: "Práctica · lunes",
-    color: "#78a9ca",
+    tasks: 1,
+    color: "#a995cf",
+  },
+];
+
+const attributeGroups: AttributeGroup[] = [
+  {
+    name: "Mente",
+    level: 7,
+    icon: "◈",
+    color: "#8fa9d7",
+    description: "Capacidad de analizar, razonar y resolver sin depender de ayuda.",
+    skills: [
+      {
+        name: "Matemática",
+        level: 7,
+        xp: 240,
+        next: 350,
+        evidence: "18 ejercicios · 2 pruebas",
+        focus: "Resolver problemas completos sin mirar el procedimiento.",
+      },
+      {
+        name: "Estadística",
+        level: 5,
+        xp: 95,
+        next: 220,
+        evidence: "7 sesiones · 1 práctica",
+        focus: "Interpretar resultados, no solo aplicar fórmulas.",
+      },
+      {
+        name: "Pensamiento lógico",
+        level: 8,
+        xp: 310,
+        next: 420,
+        evidence: "12 retos independientes",
+        focus: "Explicar por qué una solución funciona.",
+      },
+    ],
+  },
+  {
+    name: "Carrera",
+    level: 8,
+    icon: "▤",
+    color: "#d3ac66",
+    description: "Dominio comprobado de materias y competencias universitarias.",
+    skills: [
+      {
+        name: "Bases de Datos",
+        level: 8,
+        xp: 330,
+        next: 450,
+        evidence: "3 simulacros · 74% dominio",
+        focus: "Transacciones y diseño sin ayuda.",
+      },
+      {
+        name: "Contratación Pública",
+        level: 6,
+        xp: 175,
+        next: 300,
+        evidence: "4 quizzes · 29 conceptos",
+        focus: "Distinguir base legal y etapas del procedimiento.",
+      },
+      {
+        name: "Inglés B1",
+        level: 6,
+        xp: 205,
+        next: 300,
+        evidence: "11 prácticas · racha 5 días",
+        focus: "Responder con más fluidez sin traducir palabra por palabra.",
+      },
+    ],
+  },
+  {
+    name: "Físico",
+    level: 6,
+    icon: "⌁",
+    color: "#b57d68",
+    description: "Fuerza, resistencia y cuidado corporal medidos con acciones reales.",
+    skills: [
+      {
+        name: "Fuerza",
+        level: 7,
+        xp: 265,
+        next: 360,
+        evidence: "9 entrenamientos · 4 marcas",
+        focus: "Recuperar constancia sin abandonar en semana de exámenes.",
+      },
+      {
+        name: "Resistencia",
+        level: 4,
+        xp: 80,
+        next: 180,
+        evidence: "5 sesiones de cardio",
+        focus: "Dos sesiones breves por semana.",
+      },
+      {
+        name: "Nutrición",
+        level: 4,
+        xp: 115,
+        next: 200,
+        evidence: "8 días registrados",
+        focus: "Mejorar la constancia de las comidas.",
+      },
+    ],
+  },
+  {
+    name: "Dinero",
+    level: 4,
+    icon: "◇",
+    color: "#82a99b",
+    description: "Decisiones financieras y crecimiento profesional verificables.",
+    skills: [
+      {
+        name: "Presupuesto",
+        level: 4,
+        xp: 110,
+        next: 200,
+        evidence: "2 semanas registradas",
+        focus: "Registrar gastos sin dejar días vacíos.",
+      },
+      {
+        name: "Ahorro",
+        level: 3,
+        xp: 70,
+        next: 160,
+        evidence: "1 meta activa",
+        focus: "Definir una cantidad semanal realista.",
+      },
+      {
+        name: "Negocio familiar",
+        level: 6,
+        xp: 210,
+        next: 310,
+        evidence: "App y procesos en desarrollo",
+        focus: "Convertir mejoras técnicas en tiempo o dinero ahorrado.",
+      },
+    ],
+  },
+];
+
+const freeSkills: Skill[] = [
+  {
+    name: "Guitarra",
+    level: 5,
+    xp: 145,
+    next: 240,
+    evidence: "6 prácticas · 2 canciones",
+    focus: "Tocar una canción completa sin detenerte.",
+  },
+  {
+    name: "Programación",
+    level: 7,
+    xp: 285,
+    next: 380,
+    evidence: "4 proyectos · 16 prácticas",
+    focus: "Construir una función completa sin copiar código.",
+  },
+  {
+    name: "Comunicación",
+    level: 6,
+    xp: 165,
+    next: 280,
+    evidence: "8 escritos · 3 exposiciones",
+    focus: "Explicar ideas complejas con orden y claridad.",
+  },
+];
+
+const initialTasks: Task[] = [
+  {
+    id: 1,
+    title: "Simulacro de transacciones",
+    subject: "Bases de Datos",
+    due: "Hoy · 9:15 p. m.",
+    type: "Práctica",
+    state: "today",
+  },
+  {
+    id: 2,
+    title: "Repasar principios de la LOSNCP",
+    subject: "Contratación Pública",
+    due: "Hoy · 35 min",
+    type: "Tarea",
+    state: "today",
+  },
+  {
+    id: 3,
+    title: "Writing: plan de viaje",
+    subject: "Inglés B1",
+    due: "Lun 27 jul",
+    type: "Tarea",
+    state: "upcoming",
+  },
+  {
+    id: 4,
+    title: "Examen práctico",
+    subject: "Bases de Datos",
+    due: "Vie 31 jul · 8:00 a. m.",
+    type: "Examen",
+    state: "upcoming",
+  },
+  {
+    id: 5,
+    title: "Ejercicios de normalización",
+    subject: "Bases de Datos",
+    due: "Completado ayer",
+    type: "Práctica",
+    state: "done",
   },
 ];
 
@@ -61,7 +297,7 @@ const journalEntries = [
 
 function ProgressBar({
   value,
-  accent = "var(--emerald)",
+  accent = "var(--blue)",
   small = false,
 }: {
   value: number;
@@ -71,11 +307,11 @@ function ProgressBar({
   return (
     <div
       className={`progress-track ${small ? "progress-track--small" : ""}`}
-      aria-label={`${value}% completado`}
+      aria-label={`${Math.round(value)}% hacia el siguiente nivel`}
     >
       <span
         className="progress-fill"
-        style={{ width: `${value}%`, background: accent }}
+        style={{ width: `${Math.min(value, 100)}%`, background: accent }}
       />
     </div>
   );
@@ -122,24 +358,73 @@ function Modal({
   );
 }
 
+function SkillCard({
+  skill,
+  color,
+  selected,
+  onSelect,
+}: {
+  skill: Skill;
+  color: string;
+  selected?: boolean;
+  onSelect: () => void;
+}) {
+  const progress = (skill.xp / skill.next) * 100;
+
+  return (
+    <button
+      className={`skill-card ${selected ? "skill-card--selected" : ""}`}
+      onClick={onSelect}
+    >
+      <div className="skill-card__head">
+        <span className="skill-level" style={{ borderColor: color, color }}>
+          {skill.level}
+        </span>
+        <span>
+          <strong>{skill.name}</strong>
+          <small>{skill.evidence}</small>
+        </span>
+        <i>→</i>
+      </div>
+      <div className="skill-xp">
+        <span>{skill.xp} / {skill.next} XP</span>
+        <span>Nivel {skill.level + 1}</span>
+      </div>
+      <ProgressBar value={progress} accent={color} small />
+    </button>
+  );
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("today");
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
-  const [minimums, setMinimums] = useState({
+  const [habits, setHabits] = useState({
     prayer: true,
     hygiene: true,
     movement: false,
+    planning: false,
+    sleep: false,
   });
   const [modal, setModal] = useState<"quick" | "close" | "study" | null>(null);
   const [toast, setToast] = useState("");
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
-
-  const completedMinimums = useMemo(
-    () => Object.values(minimums).filter(Boolean).length,
-    [minimums],
+  const [taskDate, setTaskDate] = useState("");
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [activeAttribute, setActiveAttribute] = useState("Mente");
+  const [selectedSkill, setSelectedSkill] = useState<Skill>(
+    attributeGroups[0].skills[0],
   );
+
+  const completedHabits = useMemo(
+    () => Object.values(habits).filter(Boolean).length,
+    [habits],
+  );
+
+  const activeGroup =
+    attributeGroups.find((group) => group.name === activeAttribute) ??
+    attributeGroups[0];
 
   function notify(message: string) {
     setToast(message);
@@ -157,18 +442,49 @@ export default function Home() {
     }
   }
 
-  function toggleMinimum(key: keyof typeof minimums) {
-    setMinimums((current) => ({ ...current, [key]: !current[key] }));
+  function toggleHabit(key: keyof typeof habits) {
+    setHabits((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function toggleTask(id: number) {
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === id
+          ? { ...task, state: task.state === "done" ? "today" : "done" }
+          : task,
+      ),
+    );
   }
 
   function saveQuickEntry() {
     if (!note.trim()) {
-      notify("Escribe una nota breve antes de guardar.");
+      notify("Escribe una descripción breve antes de guardar.");
       return;
     }
+
+    if (entryType === "Tarea" || entryType === "Examen") {
+      setTasks((current) => [
+        ...current,
+        {
+          id: Date.now(),
+          title: note.trim(),
+          subject: "Sin materia",
+          due: taskDate || "Sin fecha",
+          type: entryType,
+          state: taskDate ? "upcoming" : "today",
+        },
+      ]);
+    }
+
     setModal(null);
     setNote("");
+    setTaskDate("");
     notify(`${entryType} registrada correctamente.`);
+  }
+
+  function selectAttribute(group: AttributeGroup) {
+    setActiveAttribute(group.name);
+    setSelectedSkill(group.skills[0]);
   }
 
   return (
@@ -221,8 +537,8 @@ export default function Home() {
             <p className="eyebrow">Sábado, 25 de julio</p>
             <h1>
               {view === "today" && "Buenas noches, Andre"}
-              {view === "studies" && "Mapa de estudios"}
-              {view === "progress" && "Tu progreso"}
+              {view === "studies" && "Planificador"}
+              {view === "progress" && "Árbol de habilidades"}
               {view === "journal" && "Diario de campaña"}
             </h1>
           </div>
@@ -230,9 +546,9 @@ export default function Home() {
             <div className="season-pill">Temporada 1 · Semana 1</div>
             <div className="level-badge">12</div>
             <div className="xp-summary">
-              <span>Nivel 12</span>
+              <span>Nivel global</span>
               <strong>340 / 500 XP</strong>
-              <ProgressBar value={68} />
+              <ProgressBar value={68} accent="var(--gold)" />
             </div>
           </div>
         </header>
@@ -279,46 +595,42 @@ export default function Home() {
                   <h3>Bases de Datos</h3>
                   <p className="evaluation-date">✦ Viernes · 8:00 a. m.</p>
                   <div className="preparation-row">
-                    <span>Preparación</span>
-                    <strong>68%</strong>
+                    <span>Preparación comprobada</span>
+                    <strong>3 de 5 fases</strong>
                   </div>
-                  <ProgressBar value={68} accent="var(--gold)" small />
+                  <ProgressBar value={60} accent="var(--gold)" small />
                 </div>
               </section>
 
               <section className="minimums-card panel">
                 <div className="section-heading">
                   <div>
-                    <p className="eyebrow">Proteger incluso en exámenes</p>
-                    <h3>Mínimos de hoy</h3>
+                    <p className="eyebrow">Constancia diaria</p>
+                    <h3>Hábitos de hoy</h3>
                   </div>
-                  <span>{completedMinimums}/3</span>
+                  <span>{completedHabits}/5</span>
                 </div>
                 <div className="minimum-list">
-                  <button
-                    className={minimums.prayer ? "minimum minimum--done" : "minimum"}
-                    onClick={() => toggleMinimum("prayer")}
-                  >
-                    <span className="minimum__icon">☼</span>
-                    <span><strong>Oración</strong><small>10 minutos</small></span>
-                    <i>{minimums.prayer ? "✓" : ""}</i>
-                  </button>
-                  <button
-                    className={minimums.hygiene ? "minimum minimum--done" : "minimum"}
-                    onClick={() => toggleMinimum("hygiene")}
-                  >
-                    <span className="minimum__icon">♢</span>
-                    <span><strong>Higiene</strong><small>Rutina completa</small></span>
-                    <i>{minimums.hygiene ? "✓" : ""}</i>
-                  </button>
-                  <button
-                    className={minimums.movement ? "minimum minimum--done" : "minimum"}
-                    onClick={() => toggleMinimum("movement")}
-                  >
-                    <span className="minimum__icon">↗</span>
-                    <span><strong>Movimiento</strong><small>20 minutos</small></span>
-                    <i>{minimums.movement ? "✓" : ""}</i>
-                  </button>
+                  {[
+                    ["prayer", "☼", "Oración", "10 minutos"],
+                    ["hygiene", "♢", "Higiene", "Rutina completa"],
+                    ["movement", "↗", "Movimiento", "20 minutos"],
+                    ["planning", "▦", "Plan del día", "Revisar pendientes"],
+                    ["sleep", "☾", "Descanso", "Dormir a tiempo"],
+                  ].map(([key, icon, title, detail]) => {
+                    const done = habits[key as keyof typeof habits];
+                    return (
+                      <button
+                        key={key}
+                        className={done ? "minimum minimum--done" : "minimum"}
+                        onClick={() => toggleHabit(key as keyof typeof habits)}
+                      >
+                        <span className="minimum__icon">{icon}</span>
+                        <span><strong>{title}</strong><small>{detail}</small></span>
+                        <i>{done ? "✓" : ""}</i>
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
             </aside>
@@ -341,18 +653,108 @@ export default function Home() {
 
         {view === "studies" && (
           <div className="content-view">
-            <section className="view-intro panel">
+            <section className="planner-header panel">
               <div>
-                <p className="eyebrow">Sistema académico</p>
-                <h2>No basta con entender: hay que demostrar dominio.</h2>
+                <p className="eyebrow">Tareas, exámenes y prácticas</p>
+                <h2>Todo lo académico, sin llenar veinte campos.</h2>
                 <p>
-                  Tus evaluaciones avanzan desde el diagnóstico hasta un
-                  simulacro sin ayuda. El sistema conserva el siguiente paso.
+                  Registra lo que debes hacer, ponle fecha y el sistema conserva
+                  el siguiente paso de preparación.
                 </p>
               </div>
-              <button className="secondary-action" onClick={() => setModal("quick")}>
-                + Nueva evaluación
-              </button>
+              <div className="planner-actions">
+                <button
+                  className="ghost-action calendar-action"
+                  onClick={() =>
+                    notify("La sincronización con calendario llegará al conectar tus datos reales.")
+                  }
+                >
+                  ◫ Calendario
+                  <small>Próximamente</small>
+                </button>
+                <button className="secondary-action" onClick={() => setModal("quick")}>
+                  + Registrar
+                </button>
+              </div>
+            </section>
+
+            <section className="week-strip panel" aria-label="Resumen semanal">
+              {[
+                ["Sáb", "25", "2", true],
+                ["Dom", "26", "1", false],
+                ["Lun", "27", "3", false],
+                ["Mar", "28", "1", false],
+                ["Mié", "29", "2", false],
+                ["Jue", "30", "2", false],
+                ["Vie", "31", "Examen", false],
+              ].map(([day, date, count, active]) => (
+                <button
+                  key={day as string}
+                  className={active ? "week-day week-day--active" : "week-day"}
+                  onClick={() => notify(`Agenda del ${day} ${date}.`)}
+                >
+                  <small>{day}</small>
+                  <strong>{date}</strong>
+                  <span>{count}</span>
+                </button>
+              ))}
+            </section>
+
+            <section className="task-board">
+              {([
+                ["today", "Hoy", "Lo que mueve el día"],
+                ["upcoming", "Próximas", "Con fecha definida"],
+                ["done", "Completadas", "Progreso real"],
+              ] as [TaskState, string, string][]).map(([state, title, subtitle]) => {
+                const columnTasks = tasks.filter((task) => task.state === state);
+                return (
+                  <div className="task-column panel" key={state}>
+                    <div className="task-column__head">
+                      <div>
+                        <h3>{title}</h3>
+                        <small>{subtitle}</small>
+                      </div>
+                      <span>{columnTasks.length}</span>
+                    </div>
+                    <div className="task-list">
+                      {columnTasks.map((task) => (
+                        <article
+                          className={`task-item ${state === "done" ? "task-item--done" : ""}`}
+                          key={task.id}
+                        >
+                          <button
+                            className="task-check"
+                            onClick={() => toggleTask(task.id)}
+                            aria-label={
+                              state === "done"
+                                ? `Reabrir ${task.title}`
+                                : `Completar ${task.title}`
+                            }
+                          >
+                            {state === "done" ? "✓" : ""}
+                          </button>
+                          <div>
+                            <span className={`task-type task-type--${task.type.toLowerCase()}`}>
+                              {task.type}
+                            </span>
+                            <h4>{task.title}</h4>
+                            <p>{task.subject}</p>
+                            <small>{task.due}</small>
+                          </div>
+                        </article>
+                      ))}
+                      {columnTasks.length === 0 && (
+                        <div className="empty-task">No hay elementos aquí.</div>
+                      )}
+                    </div>
+                    {state === "today" && (
+                      <button className="add-row" onClick={() => setModal("quick")}>
+                        + Añadir tarea
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </section>
 
             <section className="subject-grid">
@@ -365,18 +767,14 @@ export default function Home() {
                     <span className="tag">{subject.kind}</span>
                   </div>
                   <h3>{subject.name}</h3>
-                  <p>{subject.next}</p>
+                  <p>{subject.next} · {subject.tasks} pendientes</p>
                   <div className="subject-card__progress">
-                    <span>Dominio actual</span>
+                    <span>Dominio comprobado</span>
                     <strong>{subject.progress}%</strong>
                   </div>
                   <ProgressBar value={subject.progress} accent={subject.color} small />
-                  <button
-                    onClick={() =>
-                      notify(`Abriste la ruta de ${subject.name}.`)
-                    }
-                  >
-                    Ver ruta <span>→</span>
+                  <button onClick={() => notify(`Abriste ${subject.name}.`)}>
+                    Abrir materia <span>→</span>
                   </button>
                 </article>
               ))}
@@ -410,57 +808,155 @@ export default function Home() {
         )}
 
         {view === "progress" && (
-          <div className="content-view">
-            <section className="stats-grid">
-              <article className="stat-card panel">
-                <small>XP esta semana</small>
-                <strong>620</strong>
-                <span className="positive">↑ 18% vs. anterior</span>
-              </article>
-              <article className="stat-card panel">
-                <small>Misiones cumplidas</small>
-                <strong>14/18</strong>
-                <span>78% de cumplimiento</span>
-              </article>
-              <article className="stat-card panel">
-                <small>Práctica independiente</small>
-                <strong>3 h 20</strong>
-                <span>La métrica que más importa</span>
-              </article>
+          <div className="content-view skills-view">
+            <section className="skill-overview panel">
+              <div>
+                <p className="eyebrow">Tu personaje · progreso verificable</p>
+                <h2>Lo que sabes se convierte en habilidades.</h2>
+                <p>
+                  No calificamos “tu mente” a ojo. Practicar, resolver, crear y
+                  demostrar dominio entrega XP a una habilidad concreta.
+                </p>
+              </div>
+              <div className="overview-level">
+                <span>12</span>
+                <div>
+                  <small>Nivel global</small>
+                  <strong>11 habilidades activas</strong>
+                </div>
+              </div>
             </section>
 
-            <section className="attributes panel">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Tu personaje</p>
-                  <h3>Atributos de la temporada</h3>
-                </div>
-                <span>Nivel 12</span>
-              </div>
-              {[
-                ["Conocimiento y estudios", 74, "#d8b76d"],
-                ["Disciplina y carácter", 61, "#55b889"],
-                ["Físico y salud", 46, "#78a9ca"],
-                ["Fe y propósito", 70, "#b7a0db"],
-              ].map(([label, value, color]) => (
-                <div className="attribute-row" key={label as string}>
+            <section className="attribute-tabs" aria-label="Atributos principales">
+              {attributeGroups.map((group) => (
+                <button
+                  key={group.name}
+                  className={
+                    activeAttribute === group.name
+                      ? "attribute-tab attribute-tab--active"
+                      : "attribute-tab"
+                  }
+                  onClick={() => selectAttribute(group)}
+                  style={{ "--attribute-color": group.color } as React.CSSProperties}
+                >
+                  <span>{group.icon}</span>
                   <div>
-                    <strong>{label}</strong>
-                    <span>{value}%</span>
+                    <small>Atributo</small>
+                    <strong>{group.name}</strong>
                   </div>
-                  <ProgressBar value={value as number} accent={color as string} small />
-                </div>
+                  <i>Nv. {group.level}</i>
+                </button>
               ))}
             </section>
 
-            <section className="weekly-lesson panel">
-              <span className="lesson-icon">✦</span>
+            <section className="skill-workbench">
+              <div className="skill-group panel">
+                <div className="skill-group__head">
+                  <div>
+                    <p className="eyebrow" style={{ color: activeGroup.color }}>
+                      Nivel {activeGroup.level}
+                    </p>
+                    <h3>{activeGroup.name}</h3>
+                    <p>{activeGroup.description}</p>
+                  </div>
+                  <span
+                    className="attribute-emblem"
+                    style={{ borderColor: activeGroup.color, color: activeGroup.color }}
+                  >
+                    {activeGroup.icon}
+                  </span>
+                </div>
+                <div className="skill-list">
+                  {activeGroup.skills.map((skill) => (
+                    <SkillCard
+                      key={skill.name}
+                      skill={skill}
+                      color={activeGroup.color}
+                      selected={selectedSkill.name === skill.name}
+                      onSelect={() => setSelectedSkill(skill)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <aside className="skill-detail panel">
+                <p className="eyebrow">Habilidad seleccionada</p>
+                <div className="skill-detail__title">
+                  <span style={{ borderColor: activeGroup.color, color: activeGroup.color }}>
+                    {selectedSkill.level}
+                  </span>
+                  <div>
+                    <h3>{selectedSkill.name}</h3>
+                    <small>Nivel {selectedSkill.level}</small>
+                  </div>
+                </div>
+                <div className="skill-detail__xp">
+                  <div>
+                    <span>Camino al nivel {selectedSkill.level + 1}</span>
+                    <strong>{selectedSkill.xp} / {selectedSkill.next} XP</strong>
+                  </div>
+                  <ProgressBar
+                    value={(selectedSkill.xp / selectedSkill.next) * 100}
+                    accent={activeGroup.color}
+                  />
+                </div>
+                <div className="evidence-box">
+                  <small>Evidencia registrada</small>
+                  <strong>{selectedSkill.evidence}</strong>
+                </div>
+                <div className="next-unlock">
+                  <small>Próxima mejora</small>
+                  <p>{selectedSkill.focus}</p>
+                </div>
+                <button
+                  className="secondary-action full-button"
+                  onClick={() => {
+                    setEntryType("Sesión de estudio");
+                    setModal("quick");
+                  }}
+                >
+                  + Registrar práctica
+                </button>
+              </aside>
+            </section>
+
+            <section className="free-skills panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Fuera del pénsum</p>
+                  <h3>Habilidades libres</h3>
+                </div>
+                <span>{freeSkills.length}</span>
+              </div>
+              <p className="section-copy">
+                También puedes subir habilidades que te importan aunque no
+                pertenezcan a una materia.
+              </p>
+              <div className="free-skill-grid">
+                {freeSkills.map((skill) => (
+                  <SkillCard
+                    key={skill.name}
+                    skill={skill}
+                    color="#a995cf"
+                    onSelect={() => {
+                      setSelectedSkill(skill);
+                      notify(`${skill.name}: nivel ${skill.level}.`);
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="measurement panel">
+              <div className="measurement__icon">?</div>
               <div>
-                <p className="eyebrow">Lectura del sistema</p>
-                <h3>Comprendes rápido, pero compruebas tarde.</h3>
+                <p className="eyebrow">Cómo se calcula</p>
+                <h3>Nivel por evidencia, no por sensación.</h3>
                 <p>
-                  Esta semana tu siguiente mejora no es estudiar más horas:
-                  reserva el simulacro desde el primer día de preparación.
+                  Una sesión entrega XP por constancia; un ejercicio independiente,
+                  proyecto o examen aporta evidencia de dominio. El atributo grande
+                  resume los niveles de sus habilidades. La fe y el propósito se
+                  respetan como prácticas personales: no se reducen a un porcentaje.
                 </p>
               </div>
             </section>
@@ -535,8 +1031,8 @@ export default function Home() {
           eyebrow="Captura rápida"
           onClose={() => setModal(null)}
         >
-          <div className="segmented">
-            {["Sesión de estudio", "Tarea", "Examen", "Diario"].map((type) => (
+          <div className="segmented segmented--five">
+            {["Sesión de estudio", "Tarea", "Examen", "Hábito", "Diario"].map((type) => (
               <button
                 key={type}
                 className={entryType === type ? "segmented__active" : ""}
@@ -547,14 +1043,28 @@ export default function Home() {
             ))}
           </div>
           <label className="field">
-            <span>¿Qué ocurrió?</span>
+            <span>¿Qué quieres registrar?</span>
             <textarea
               autoFocus
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Ej.: Estudié una hora de transacciones; entendí, pero todavía no resolví solo."
+              placeholder={
+                entryType === "Tarea" || entryType === "Examen"
+                  ? "Ej.: Resolver taller de normalización"
+                  : "Ej.: Practiqué guitarra 35 minutos y completé una canción."
+              }
             />
           </label>
+          {(entryType === "Tarea" || entryType === "Examen") && (
+            <label className="field field--date">
+              <span>Fecha</span>
+              <input
+                type="date"
+                value={taskDate}
+                onChange={(event) => setTaskDate(event.target.value)}
+              />
+            </label>
+          )}
           <div className="modal__actions">
             <button className="ghost-action" onClick={() => setModal(null)}>
               Cancelar
@@ -586,7 +1096,7 @@ export default function Home() {
                   setModal(null);
                   notify(
                     index >= 2
-                      ? "Misión cumplida: +120 XP."
+                      ? "Misión cumplida: +120 XP y evidencia de dominio."
                       : "Avance guardado. Mañana practicarás sin ayuda.",
                   );
                 }}
@@ -607,7 +1117,7 @@ export default function Home() {
         >
           <div className="day-summary">
             <div><span>Misión principal</span><strong>{missionStatus === "done" ? "Cumplida" : missionStatus === "active" ? "En curso" : "Pendiente"}</strong></div>
-            <div><span>Mínimos protegidos</span><strong>{completedMinimums} de 3</strong></div>
+            <div><span>Hábitos registrados</span><strong>{completedHabits} de 5</strong></div>
             <div><span>XP provisional</span><strong>+{missionStatus === "done" ? 170 : 50} XP</strong></div>
           </div>
           <label className="field">
