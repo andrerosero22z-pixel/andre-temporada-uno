@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-type View = "today" | "studies" | "progress" | "journal";
+type View = "today" | "studies" | "progress" | "habits" | "journal";
 type MissionStatus = "pending" | "active" | "done";
 type TaskState = "today" | "upcoming" | "done";
 
@@ -36,7 +36,8 @@ type AttributeGroup = {
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "Hoy", icon: "✦" },
   { id: "studies", label: "Planificador", icon: "▦" },
-  { id: "progress", label: "Habilidades", icon: "⌁" },
+  { id: "progress", label: "Progreso", icon: "⌁" },
+  { id: "habits", label: "Hábitos", icon: "◌" },
   { id: "journal", label: "Diario", icon: "✎" },
 ];
 
@@ -58,18 +59,18 @@ const subjects = [
     color: "#83a8d8",
   },
   {
-    name: "Contratación Pública",
-    kind: "Teórica",
-    progress: 42,
-    next: "Quiz · 30 jul",
+    name: "Probabilidad y Estadística",
+    kind: "Mixta",
+    progress: 46,
+    next: "Taller · 30 jul",
     tasks: 2,
     color: "#d3ac66",
   },
   {
-    name: "Inglés B1",
-    kind: "Mixta",
-    progress: 54,
-    next: "Práctica · lunes",
+    name: "Programación con Python",
+    kind: "Práctica",
+    progress: 57,
+    next: "Proyecto · lunes",
     tasks: 1,
     color: "#a995cf",
   },
@@ -77,11 +78,11 @@ const subjects = [
 
 const attributeGroups: AttributeGroup[] = [
   {
-    name: "Mente",
+    name: "Ciencia de Datos",
     level: 7,
     icon: "◈",
     color: "#8fa9d7",
-    description: "Capacidad de analizar, razonar y resolver sin depender de ayuda.",
+    description: "Competencias técnicas de la carrera, medidas con ejercicios, proyectos y evaluaciones.",
     skills: [
       {
         name: "Matemática",
@@ -100,24 +101,7 @@ const attributeGroups: AttributeGroup[] = [
         focus: "Interpretar resultados, no solo aplicar fórmulas.",
       },
       {
-        name: "Pensamiento lógico",
-        level: 8,
-        xp: 310,
-        next: 420,
-        evidence: "12 retos independientes",
-        focus: "Explicar por qué una solución funciona.",
-      },
-    ],
-  },
-  {
-    name: "Carrera",
-    level: 8,
-    icon: "▤",
-    color: "#d3ac66",
-    description: "Dominio comprobado de materias y competencias universitarias.",
-    skills: [
-      {
-        name: "Bases de Datos",
+        name: "SQL y Bases de Datos",
         level: 8,
         xp: 330,
         next: 450,
@@ -125,20 +109,28 @@ const attributeGroups: AttributeGroup[] = [
         focus: "Transacciones y diseño sin ayuda.",
       },
       {
-        name: "Contratación Pública",
+        name: "Python",
         level: 6,
         xp: 175,
         next: 300,
-        evidence: "4 quizzes · 29 conceptos",
-        focus: "Distinguir base legal y etapas del procedimiento.",
+        evidence: "4 proyectos · 16 prácticas",
+        focus: "Resolver un análisis completo sin copiar código.",
       },
       {
-        name: "Inglés B1",
-        level: 6,
-        xp: 205,
-        next: 300,
-        evidence: "11 prácticas · racha 5 días",
-        focus: "Responder con más fluidez sin traducir palabra por palabra.",
+        name: "Machine Learning",
+        level: 2,
+        xp: 45,
+        next: 140,
+        evidence: "2 prácticas introductorias",
+        focus: "Entrenar y evaluar un primer modelo con criterio.",
+      },
+      {
+        name: "Visualización de datos",
+        level: 4,
+        xp: 120,
+        next: 220,
+        evidence: "3 dashboards · 1 presentación",
+        focus: "Contar una conclusión clara con datos.",
       },
     ],
   },
@@ -176,11 +168,44 @@ const attributeGroups: AttributeGroup[] = [
     ],
   },
   {
-    name: "Dinero",
+    name: "Creatividad",
+    level: 5,
+    icon: "✧",
+    color: "#a995cf",
+    description: "Habilidades expresivas que crecen con práctica y obras terminadas.",
+    skills: [
+      {
+        name: "Guitarra",
+        level: 5,
+        xp: 145,
+        next: 240,
+        evidence: "6 prácticas · 2 canciones",
+        focus: "Tocar una canción completa sin detenerte.",
+      },
+      {
+        name: "Producción musical",
+        level: 4,
+        xp: 125,
+        next: 220,
+        evidence: "2 piezas · 5 sesiones",
+        focus: "Terminar una mezcla equilibrada sin sobresaturarla.",
+      },
+      {
+        name: "Comunicación",
+        level: 6,
+        xp: 165,
+        next: 280,
+        evidence: "8 escritos · 3 exposiciones",
+        focus: "Explicar ideas complejas con orden y claridad.",
+      },
+    ],
+  },
+  {
+    name: "Dinero y Trabajo",
     level: 4,
     icon: "◇",
-    color: "#82a99b",
-    description: "Decisiones financieras y crecimiento profesional verificables.",
+    color: "#c19b70",
+    description: "Orden financiero y capacidad de convertir habilidades en valor.",
     skills: [
       {
         name: "Presupuesto",
@@ -199,6 +224,14 @@ const attributeGroups: AttributeGroup[] = [
         focus: "Definir una cantidad semanal realista.",
       },
       {
+        name: "Portafolio profesional",
+        level: 2,
+        xp: 55,
+        next: 150,
+        evidence: "1 proyecto documentado",
+        focus: "Publicar un caso completo de Ciencia de Datos.",
+      },
+      {
         name: "Negocio familiar",
         level: 6,
         xp: 210,
@@ -210,31 +243,64 @@ const attributeGroups: AttributeGroup[] = [
   },
 ];
 
-const freeSkills: Skill[] = [
+const lifeStats = [
   {
-    name: "Guitarra",
-    level: 5,
-    xp: 145,
-    next: 240,
-    evidence: "6 prácticas · 2 canciones",
-    focus: "Tocar una canción completa sin detenerte.",
+    name: "Disciplina",
+    value: 73,
+    detail: "Cumplimiento, puntualidad y recuperaciones",
+    change: "+6 esta semana",
+    color: "#d3ac66",
   },
   {
-    name: "Programación",
-    level: 7,
-    xp: 285,
-    next: 380,
-    evidence: "4 proyectos · 16 prácticas",
-    focus: "Construir una función completa sin copiar código.",
+    name: "Salud física",
+    value: 61,
+    detail: "Sueño, movimiento, entrenamiento y nutrición",
+    change: "+3 esta semana",
+    color: "#b98275",
   },
   {
-    name: "Comunicación",
-    level: 6,
-    xp: 165,
-    next: 280,
-    evidence: "8 escritos · 3 exposiciones",
-    focus: "Explicar ideas complejas con orden y claridad.",
+    name: "Enfoque mental",
+    value: 67,
+    detail: "Bloques profundos, descansos y saturación",
+    change: "+4 esta semana",
+    color: "#8fa9d7",
   },
+  {
+    name: "Avance de carrera",
+    value: 56,
+    detail: "Materias aprobadas y periodo actual",
+    change: "18 de 32 materias",
+    color: "#9a8cc2",
+  },
+  {
+    name: "Orden financiero",
+    value: 48,
+    detail: "Registro, presupuesto, ahorro e ingresos",
+    change: "+8 este mes",
+    color: "#c19b70",
+  },
+  {
+    name: "Equilibrio personal",
+    value: 70,
+    detail: "Fe, descanso, relaciones y tiempo propio",
+    change: "estable",
+    color: "#7f9eb8",
+  },
+];
+
+const habitRows = [
+  { name: "Oración", goal: "Diario", streak: 8, rate: 86, week: [1, 1, 1, 1, 1, 0, 1] },
+  { name: "Higiene completa", goal: "Diario", streak: 6, rate: 93, week: [1, 1, 1, 1, 1, 1, 0] },
+  { name: "Estudio profundo", goal: "5× semana", streak: 4, rate: 78, week: [1, 1, 0, 1, 1, 0, 1] },
+  { name: "Entrenamiento", goal: "4× semana", streak: 2, rate: 64, week: [1, 0, 1, 0, 1, 0, 0] },
+  { name: "Dormir a tiempo", goal: "5× semana", streak: 3, rate: 57, week: [0, 1, 1, 0, 1, 0, 1] },
+];
+
+const heatmap = [
+  1, 2, 2, 1, 0, 2, 1,
+  2, 1, 2, 2, 1, 0, 1,
+  2, 2, 1, 3, 2, 1, 0,
+  3, 2, 2, 3, 2, 2, 1,
 ];
 
 const initialTasks: Task[] = [
@@ -248,16 +314,16 @@ const initialTasks: Task[] = [
   },
   {
     id: 2,
-    title: "Repasar principios de la LOSNCP",
-    subject: "Contratación Pública",
+    title: "Resolver ejercicios de probabilidad",
+    subject: "Probabilidad y Estadística",
     due: "Hoy · 35 min",
     type: "Tarea",
     state: "today",
   },
   {
     id: 3,
-    title: "Writing: plan de viaje",
-    subject: "Inglés B1",
+    title: "Limpiar dataset del proyecto",
+    subject: "Programación con Python",
     due: "Lun 27 jul",
     type: "Tarea",
     state: "upcoming",
@@ -412,7 +478,7 @@ export default function Home() {
   const [note, setNote] = useState("");
   const [taskDate, setTaskDate] = useState("");
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [activeAttribute, setActiveAttribute] = useState("Mente");
+  const [activeAttribute, setActiveAttribute] = useState("Ciencia de Datos");
   const [selectedSkill, setSelectedSkill] = useState<Skill>(
     attributeGroups[0].skills[0],
   );
@@ -534,11 +600,12 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Sábado, 25 de julio</p>
+            <p className="eyebrow">Domingo, 26 de julio</p>
             <h1>
               {view === "today" && "Buenas noches, Andre"}
               {view === "studies" && "Planificador"}
-              {view === "progress" && "Árbol de habilidades"}
+              {view === "progress" && "Mapa de progreso"}
+              {view === "habits" && "Seguimiento de hábitos"}
               {view === "journal" && "Diario de campaña"}
             </h1>
           </div>
@@ -811,23 +878,107 @@ export default function Home() {
           <div className="content-view skills-view">
             <section className="skill-overview panel">
               <div>
-                <p className="eyebrow">Tu personaje · progreso verificable</p>
-                <h2>Lo que sabes se convierte en habilidades.</h2>
+                <p className="eyebrow">Tu personaje · vista completa</p>
+                <h2>Tu vida no es una sola barra.</h2>
                 <p>
-                  No calificamos “tu mente” a ojo. Practicar, resolver, crear y
-                  demostrar dominio entrega XP a una habilidad concreta.
+                  Primero miramos tu estado general; después, el avance de tu
+                  carrera y las habilidades concretas que estás entrenando.
                 </p>
               </div>
               <div className="overview-level">
                 <span>12</span>
                 <div>
                   <small>Nivel global</small>
-                  <strong>11 habilidades activas</strong>
+                  <strong>15 habilidades activas</strong>
                 </div>
               </div>
             </section>
 
-            <section className="attribute-tabs" aria-label="Atributos principales">
+            <section className="purpose-card panel">
+              <span className="purpose-card__compass">✦</span>
+              <div>
+                <p className="eyebrow">Propósito · la brújula, no una nota</p>
+                <h3>Crecer con Dios, terminar Ciencia de Datos y construir una vida con dominio propio.</h3>
+                <p>
+                  El propósito orienta las decisiones y temporadas. No sube ni
+                  baja como si tu fe o tu valor personal fueran un porcentaje.
+                </p>
+              </div>
+              <button
+                className="ghost-action"
+                onClick={() => notify("Aquí podrás editar tu propósito y tus principios.")}
+              >
+                Editar brújula
+              </button>
+            </section>
+
+            <section className="life-state panel">
+              <div className="section-heading life-state__heading">
+                <div>
+                  <p className="eyebrow">Barras generales</p>
+                  <h3>Estado de tu vida</h3>
+                </div>
+                <span>Esta semana</span>
+              </div>
+              <p className="section-copy">
+                Estas barras se calcularán con hábitos, tareas, sesiones y registros
+                reales; no con una opinión al azar.
+              </p>
+              <div className="life-stat-grid">
+                {lifeStats.map((stat) => (
+                  <article className="life-stat" key={stat.name}>
+                    <div className="life-stat__head">
+                      <div>
+                        <strong>{stat.name}</strong>
+                        <small>{stat.detail}</small>
+                      </div>
+                      <span style={{ color: stat.color }}>{stat.value}</span>
+                    </div>
+                    <ProgressBar value={stat.value} accent={stat.color} />
+                    <p>{stat.change}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="career-progress panel">
+              <div className="career-progress__main">
+                <p className="eyebrow">Objetivo profesional</p>
+                <h3>Licenciatura en Ciencia de Datos</h3>
+                <p>
+                  La barra de carrera sube al aprobar materias. Las habilidades
+                  técnicas suben con evidencia, aunque todavía no termine el semestre.
+                </p>
+                <div className="degree-bar">
+                  <div>
+                    <span>Avance del pénsum</span>
+                    <strong>56%</strong>
+                  </div>
+                  <ProgressBar value={56} accent="#9a8cc2" />
+                  <small>18 aprobadas · 5 cursando · 9 pendientes</small>
+                </div>
+              </div>
+              <div className="term-card">
+                <span>Periodo actual</span>
+                <strong>5 materias</strong>
+                <div><small>Al día</small><b>3</b></div>
+                <div><small>En riesgo</small><b className="warning-text">1</b></div>
+                <div><small>Próxima evaluación</small><b>5 días</b></div>
+                <em>Datos de ejemplo para el prototipo</em>
+              </div>
+            </section>
+
+            <div className="subsection-title">
+              <div>
+                <p className="eyebrow">Subbarras entrenables</p>
+                <h2>Habilidades y caminos</h2>
+              </div>
+              <p>
+                Elige un camino para ver exactamente qué estás mejorando y con qué evidencia.
+              </p>
+            </div>
+
+            <section className="attribute-tabs" aria-label="Caminos de habilidades">
               {attributeGroups.map((group) => (
                 <button
                   key={group.name}
@@ -841,7 +992,7 @@ export default function Home() {
                 >
                   <span>{group.icon}</span>
                   <div>
-                    <small>Atributo</small>
+                    <small>Camino</small>
                     <strong>{group.name}</strong>
                   </div>
                   <i>Nv. {group.level}</i>
@@ -920,33 +1071,6 @@ export default function Home() {
               </aside>
             </section>
 
-            <section className="free-skills panel">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Fuera del pénsum</p>
-                  <h3>Habilidades libres</h3>
-                </div>
-                <span>{freeSkills.length}</span>
-              </div>
-              <p className="section-copy">
-                También puedes subir habilidades que te importan aunque no
-                pertenezcan a una materia.
-              </p>
-              <div className="free-skill-grid">
-                {freeSkills.map((skill) => (
-                  <SkillCard
-                    key={skill.name}
-                    skill={skill}
-                    color="#a995cf"
-                    onSelect={() => {
-                      setSelectedSkill(skill);
-                      notify(`${skill.name}: nivel ${skill.level}.`);
-                    }}
-                  />
-                ))}
-              </div>
-            </section>
-
             <section className="measurement panel">
               <div className="measurement__icon">?</div>
               <div>
@@ -954,9 +1078,163 @@ export default function Home() {
                 <h3>Nivel por evidencia, no por sensación.</h3>
                 <p>
                   Una sesión entrega XP por constancia; un ejercicio independiente,
-                  proyecto o examen aporta evidencia de dominio. El atributo grande
-                  resume los niveles de sus habilidades. La fe y el propósito se
-                  respetan como prácticas personales: no se reducen a un porcentaje.
+                  proyecto o examen aporta evidencia de dominio. Las barras generales
+                  resumen comportamiento real; las habilidades conservan su propio
+                  nivel. La fe y el propósito se respetan como prácticas personales.
+                </p>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {view === "habits" && (
+          <div className="content-view habits-view">
+            <section className="habits-hero panel">
+              <div>
+                <p className="eyebrow">Conducta repetida · progreso visible</p>
+                <h2>Lo que repites termina formando al personaje.</h2>
+                <p>
+                  Aquí no solo marcas hábitos: comparas semanas, encuentras caídas
+                  y descubres si la constancia realmente está mejorando.
+                </p>
+              </div>
+              <div className="habit-score">
+                <span>83%</span>
+                <small>cumplimiento semanal</small>
+                <b>↑ 7 puntos</b>
+              </div>
+            </section>
+
+            <section className="habit-summary-grid">
+              <article className="habit-kpi panel">
+                <small>Racha más fuerte</small>
+                <strong>8 días</strong>
+                <span>Oración</span>
+              </article>
+              <article className="habit-kpi panel">
+                <small>Esta semana</small>
+                <strong>29 / 35</strong>
+                <span>registros cumplidos</span>
+              </article>
+              <article className="habit-kpi panel">
+                <small>Mayor oportunidad</small>
+                <strong>Dormir</strong>
+                <span>57% en 30 días</span>
+              </article>
+              <article className="habit-kpi panel">
+                <small>Recuperaciones</small>
+                <strong>2</strong>
+                <span>sin romper la temporada</span>
+              </article>
+            </section>
+
+            <section className="habit-analytics">
+              <article className="trend-card panel">
+                <div className="chart-heading">
+                  <div>
+                    <p className="eyebrow">Tendencia</p>
+                    <h3>Cumplimiento diario</h3>
+                  </div>
+                  <div className="period-tabs">
+                    <button onClick={() => notify("Vista semanal activa.")}>7 días</button>
+                    <button className="period-tabs__active">4 semanas</button>
+                    <button onClick={() => notify("Vista de 3 meses disponible con datos reales.")}>3 meses</button>
+                  </div>
+                </div>
+                <div className="bar-chart" aria-label="Tendencia de cumplimiento de hábitos">
+                  {[54, 61, 58, 68, 72, 76, 83, 79, 86, 82, 88, 84].map((value, index) => (
+                    <div className="bar-chart__column" key={`${value}-${index}`}>
+                      <span style={{ height: `${value}%` }} />
+                      <small>{index % 2 === 0 ? index + 1 : ""}</small>
+                    </div>
+                  ))}
+                </div>
+                <div className="chart-note">
+                  <span><i className="legend-dot" /> Cumplimiento</span>
+                  <strong>Promedio: 76%</strong>
+                </div>
+              </article>
+
+              <article className="heatmap-card panel">
+                <div className="chart-heading">
+                  <div>
+                    <p className="eyebrow">Mapa de constancia</p>
+                    <h3>Últimos 28 días</h3>
+                  </div>
+                  <span className="small-badge">Mejorando</span>
+                </div>
+                <div className="habit-heatmap" aria-label="Actividad de los últimos 28 días">
+                  {heatmap.map((intensity, index) => (
+                    <button
+                      key={index}
+                      className={`heat-cell heat-cell--${intensity}`}
+                      aria-label={`Día ${index + 1}: intensidad ${intensity}`}
+                      onClick={() => notify(`Día ${index + 1}: ${intensity + 2} hábitos cumplidos.`)}
+                    />
+                  ))}
+                </div>
+                <div className="heatmap-legend">
+                  <span>Menos</span>
+                  {[0, 1, 2, 3].map((level) => (
+                    <i className={`heat-cell heat-cell--${level}`} key={level} />
+                  ))}
+                  <span>Más</span>
+                </div>
+                <p>
+                  Tus mejores días aparecen cuando planificas la noche anterior.
+                  El sueño sigue siendo el punto que más arrastra el promedio.
+                </p>
+              </article>
+            </section>
+
+            <section className="habit-table panel">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Hábitos activos</p>
+                  <h3>Detalle por hábito</h3>
+                </div>
+                <button
+                  className="secondary-action"
+                  onClick={() => {
+                    setEntryType("Hábito");
+                    setModal("quick");
+                  }}
+                >
+                  + Nuevo hábito
+                </button>
+              </div>
+              <div className="habit-table__head">
+                <span>Hábito</span><span>Meta</span><span>Últimos 7 días</span><span>Racha</span><span>30 días</span>
+              </div>
+              {habitRows.map((habit) => (
+                <article className="habit-row" key={habit.name}>
+                  <strong>{habit.name}</strong>
+                  <span>{habit.goal}</span>
+                  <div className="week-dots" aria-label={`Últimos 7 días de ${habit.name}`}>
+                    {habit.week.map((done, index) => (
+                      <i className={done ? "week-dot week-dot--done" : "week-dot"} key={index}>
+                        {done ? "✓" : ""}
+                      </i>
+                    ))}
+                  </div>
+                  <span><b>{habit.streak}</b> días</span>
+                  <div className="rate-cell">
+                    <ProgressBar value={habit.rate} accent={habit.rate < 60 ? "#b98275" : "#8fa9d7"} small />
+                    <b>{habit.rate}%</b>
+                  </div>
+                </article>
+              ))}
+            </section>
+
+            <section className="habit-insight panel">
+              <span>✦</span>
+              <div>
+                <p className="eyebrow">Lectura de la semana</p>
+                <h3>No necesitas más hábitos; necesitas proteger las noches.</h3>
+                <p>
+                  Cuando duermes tarde, al día siguiente bajan estudio, movimiento
+                  y planificación. La próxima misión de disciplina será cerrar pantallas
+                  a una hora definida, no añadir otra casilla.
                 </p>
               </div>
             </section>
