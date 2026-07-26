@@ -14,7 +14,7 @@ function errorMessage(error: unknown) {
 
 export async function GET() {
   try {
-    const db = getDb();
+    const db = await getDb();
     const rows = await db.select().from(tasks).orderBy(asc(tasks.dueDate), asc(tasks.createdAt));
     return Response.json({ tasks: rows });
   } catch (error) {
@@ -46,7 +46,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Escribe el nombre de la tarea." }, { status: 400 });
     }
 
-    const [task] = await getDb()
+    const db = await getDb();
+    const [task] = await db
       .insert(tasks)
       .values({
         id: crypto.randomUUID(),
@@ -71,7 +72,8 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Cambio de tarea inválido." }, { status: 400 });
     }
 
-    const [task] = await getDb()
+    const db = await getDb();
+    const [task] = await db
       .update(tasks)
       .set({
         state: payload.state,

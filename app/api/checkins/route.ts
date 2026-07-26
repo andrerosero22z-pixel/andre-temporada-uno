@@ -20,7 +20,8 @@ function errorMessage(error: unknown) {
 export async function GET() {
   try {
     const date = currentDate();
-    const rows = await getDb()
+    const db = await getDb();
+    const rows = await db
       .select()
       .from(dailyCheckins)
       .where(eq(dailyCheckins.date, date));
@@ -42,7 +43,8 @@ export async function PUT(request: Request) {
     }
 
     const date = currentDate();
-    await getDb()
+    const db = await getDb();
+    await db
       .insert(dailyCheckins)
       .values({
         date,
@@ -58,7 +60,7 @@ export async function PUT(request: Request) {
         },
       });
 
-    const [checkin] = await getDb()
+    const [checkin] = await db
       .select()
       .from(dailyCheckins)
       .where(
