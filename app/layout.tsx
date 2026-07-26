@@ -16,9 +16,6 @@ export const metadata: Metadata = {
   title: "Temporada Uno · Andre",
   description:
     "Sistema personal gamificado de estudios, hábitos y progreso de Andre.",
-  other: {
-    "codex-preview": "development",
-  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

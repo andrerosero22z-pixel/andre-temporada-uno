@@ -1,37 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-type View = "today" | "studies" | "progress" | "goals" | "habits" | "journal";
-type MissionStatus = "pending" | "active" | "done";
-type TaskState = "today" | "upcoming" | "done";
-
-type Task = {
-  id: string;
-  title: string;
-  subject: string;
-  dueDate: string | null;
-  type: "Tarea" | "Examen" | "Práctica";
-  state: TaskState;
-};
-
-type Skill = {
-  name: string;
-  level: number;
-  xp: number;
-  next: number;
-  evidence: string;
-  focus: string;
-};
-
-type AttributeGroup = {
-  name: string;
-  level: number;
-  icon: string;
-  color: string;
-  description: string;
-  skills: Skill[];
-};
+import { AuthScreen } from "@/components/auth-screen";
+import {
+  createPlannerItem,
+  loadDashboardData,
+  setHabitCheckin,
+  setPlannerItemCompleted,
+} from "@/lib/supabase/dashboard";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import type {
+  AttributeGroup,
+  HabitIds,
+  HabitKey,
+  HabitState,
+  MissionStatus,
+  Skill,
+  Task,
+  TaskState,
+  View,
+} from "@/lib/types";
 
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "Hoy", icon: "✦" },
@@ -518,16 +506,22 @@ function SkillCard({
 }
 
 export default function Home() {
+  const [authStatus, setAuthStatus] = useState<
+    "checking" | "signed_in" | "signed_out"
+  >("checking");
+  const [userId, setUserId] = useState("");
+  const [userLabel, setUserLabel] = useState("Andre");
   const [view, setView] = useState<View>("today");
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
-  const [habits, setHabits] = useState({
+  const [habits, setHabits] = useState<HabitState>({
     prayer: false,
     hygiene: false,
     movement: false,
     planning: false,
     sleep: false,
   });
+  const [habitIds, setHabitIds] = useState<HabitIds>({});
   const [modal, setModal] = useState<"quick" | "close" | "study" | "recovery" | null>(null);
   const [toast, setToast] = useState("");
   const [entryType, setEntryType] = useState("Sesión de estudio");
@@ -557,26 +551,54 @@ export default function Home() {
   );
 
   useEffect(() => {
+    const client = getSupabaseBrowserClient();
+    let mounted = true;
+
+    void client.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const user = data.session?.user;
+      setUserId(user?.id ?? "");
+      setUserLabel(
+        user?.user_metadata?.full_name ||
+          user?.email?.split("@")[0] ||
+          "Andre",
+      );
+      setAuthStatus(user ? "signed_in" : "signed_out");
+    });
+
+    const {
+      data: { subscription },
+    } = client.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      const user = session?.user;
+      setUserId(user?.id ?? "");
+      setUserLabel(
+        user?.user_metadata?.full_name ||
+          user?.email?.split("@")[0] ||
+          "Andre",
+      );
+      setAuthStatus(user ? "signed_in" : "signed_out");
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
     let cancelled = false;
 
     async function loadRealData() {
       try {
-        const [tasksResponse, checkinsResponse] = await Promise.all([
-          fetch("/api/tasks", { cache: "no-store" }),
-          fetch("/api/checkins", { cache: "no-store" }),
-        ]);
-        if (!tasksResponse.ok || !checkinsResponse.ok) {
-          throw new Error("No se pudieron cargar los datos.");
-        }
-
-        const tasksPayload = (await tasksResponse.json()) as { tasks: Task[] };
-        const checkinsPayload = (await checkinsResponse.json()) as {
-          checkins: Partial<typeof habits>;
-        };
+        const client = getSupabaseBrowserClient();
+        const data = await loadDashboardData(client, userId);
         if (cancelled) return;
 
-        setTasks(tasksPayload.tasks);
-        setHabits((current) => ({ ...current, ...checkinsPayload.checkins }));
+        setTasks(data.tasks);
+        setHabits(data.checkins);
+        setHabitIds(data.ids);
         setDataStatus("ready");
       } catch {
         if (!cancelled) setDataStatus("error");
@@ -587,7 +609,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   function notify(message: string) {
     setToast(message);
@@ -605,16 +627,21 @@ export default function Home() {
     }
   }
 
-  async function toggleHabit(key: keyof typeof habits) {
+  async function toggleHabit(key: HabitKey) {
+    const habitId = habitIds[key];
+    if (!userId || !habitId) {
+      notify("El hábito todavía no está listo. Recarga e inténtalo de nuevo.");
+      return;
+    }
     const completed = !habits[key];
     setHabits((current) => ({ ...current, [key]: completed }));
     try {
-      const response = await fetch("/api/checkins", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ habitKey: key, completed }),
-      });
-      if (!response.ok) throw new Error("No se pudo guardar.");
+      await setHabitCheckin(
+        getSupabaseBrowserClient(),
+        userId,
+        habitId,
+        completed,
+      );
     } catch {
       setHabits((current) => ({ ...current, [key]: !completed }));
       notify("No se pudo guardar el no negociable. Inténtalo otra vez.");
@@ -631,15 +658,10 @@ export default function Home() {
       ),
     );
     try {
-      const response = await fetch("/api/tasks", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, state: nextState }),
-      });
-      if (!response.ok) throw new Error("No se pudo guardar.");
-      const payload = (await response.json()) as { task: Task };
-      setTasks((current) =>
-        current.map((task) => (task.id === id ? payload.task : task)),
+      await setPlannerItemCompleted(
+        getSupabaseBrowserClient(),
+        currentTask,
+        nextState === "done",
       );
     } catch {
       setTasks((current) =>
@@ -656,22 +678,24 @@ export default function Home() {
     }
 
     if (entryType === "Tarea" || entryType === "Examen") {
+      if (!userId) {
+        notify("Tu sesión expiró. Vuelve a entrar.");
+        return;
+      }
       try {
-        const response = await fetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const data = await createPlannerItem(
+          getSupabaseBrowserClient(),
+          userId,
+          {
             title: note.trim(),
             subject: taskSubject.trim() || "General",
             dueDate: taskDate || null,
             type: entryType,
-          }),
-        });
-        const payload = (await response.json()) as { task?: Task; error?: string };
-        if (!response.ok || !payload.task) {
-          throw new Error(payload.error || "No se pudo guardar.");
-        }
-        setTasks((current) => [...current, payload.task as Task]);
+          },
+        );
+        setTasks(data.tasks);
+        setHabits(data.checkins);
+        setHabitIds(data.ids);
       } catch (error) {
         notify(error instanceof Error ? error.message : "No se pudo guardar.");
         return;
@@ -691,6 +715,14 @@ export default function Home() {
   function selectAttribute(group: AttributeGroup) {
     setActiveAttribute(group.name);
     setSelectedSkill(group.skills[0]);
+  }
+
+  async function signOut() {
+    await getSupabaseBrowserClient().auth.signOut();
+  }
+
+  if (authStatus !== "signed_in") {
+    return <AuthScreen loading={authStatus === "checking"} />;
   }
 
   return (
@@ -729,9 +761,11 @@ export default function Home() {
         </div>
 
         <div className="profile-chip">
-          <span className="profile-chip__avatar">A</span>
+          <span className="profile-chip__avatar">
+            {userLabel.charAt(0).toUpperCase()}
+          </span>
           <div>
-            <strong>Andre</strong>
+            <strong>{userLabel}</strong>
             <small>Nivel 12 · Aprendiz</small>
           </div>
         </div>
@@ -753,7 +787,7 @@ export default function Home() {
           <div className="player-status">
             <span className={`data-status data-status--${dataStatus}`}>
               {dataStatus === "ready"
-                ? "Datos reales"
+                ? "Supabase · núcleo real"
                 : dataStatus === "loading"
                   ? "Cargando"
                   : "Sin conexión"}
@@ -765,6 +799,9 @@ export default function Home() {
               <strong>340 / 500 XP</strong>
               <ProgressBar value={68} accent="var(--gold)" />
             </div>
+            <button className="sign-out" onClick={signOut} type="button">
+              Salir
+            </button>
           </div>
         </header>
 
