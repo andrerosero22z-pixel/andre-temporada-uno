@@ -1,16 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type View = "today" | "studies" | "progress" | "goals" | "habits" | "journal";
 type MissionStatus = "pending" | "active" | "done";
 type TaskState = "today" | "upcoming" | "done";
 
 type Task = {
-  id: number;
+  id: string;
   title: string;
   subject: string;
-  due: string;
+  dueDate: string | null;
   type: "Tarea" | "Examen" | "Práctica";
   state: TaskState;
 };
@@ -378,48 +378,29 @@ const nonNegotiables = [
   { name: "Movimiento", minimum: "10 minutos", purpose: "Evitar convertir un día ocupado en abandono total.", rate: 71 },
 ];
 
-const initialTasks: Task[] = [
-  {
-    id: 1,
-    title: "Simulacro de transacciones",
-    subject: "Bases de Datos",
-    due: "Hoy · 9:15 p. m.",
-    type: "Práctica",
-    state: "today",
-  },
-  {
-    id: 2,
-    title: "Resolver ejercicios de probabilidad",
-    subject: "Probabilidad y Estadística",
-    due: "Hoy · 35 min",
-    type: "Tarea",
-    state: "today",
-  },
-  {
-    id: 3,
-    title: "Limpiar dataset del proyecto",
-    subject: "Programación con Python",
-    due: "Lun 27 jul",
-    type: "Tarea",
-    state: "upcoming",
-  },
-  {
-    id: 4,
-    title: "Examen práctico",
-    subject: "Bases de Datos",
-    due: "Vie 31 jul · 8:00 a. m.",
-    type: "Examen",
-    state: "upcoming",
-  },
-  {
-    id: 5,
-    title: "Ejercicios de normalización",
-    subject: "Bases de Datos",
-    due: "Completado ayer",
-    type: "Práctica",
-    state: "done",
-  },
-];
+const initialTasks: Task[] = [];
+
+function formatTaskDate(value: string | null, state: TaskState) {
+  if (state === "done") return "Completada";
+  if (!value) return "Sin fecha";
+
+  const date = new Date(`${value}T12:00:00`);
+  return new Intl.DateTimeFormat("es-EC", {
+    timeZone: "America/Guayaquil",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+function todayLabel() {
+  return new Intl.DateTimeFormat("es-EC", {
+    timeZone: "America/Guayaquil",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
+}
 
 const journalEntries = [
   {
@@ -541,8 +522,8 @@ export default function Home() {
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
   const [habits, setHabits] = useState({
-    prayer: true,
-    hygiene: true,
+    prayer: false,
+    hygiene: false,
     movement: false,
     planning: false,
     sleep: false,
@@ -552,7 +533,9 @@ export default function Home() {
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
   const [taskDate, setTaskDate] = useState("");
+  const [taskSubject, setTaskSubject] = useState("");
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [dataStatus, setDataStatus] = useState<"loading" | "ready" | "error">("loading");
   const [activeAttribute, setActiveAttribute] = useState("Ciencia de Datos");
   const [selectedSkill, setSelectedSkill] = useState<Skill>(
     attributeGroups[0].skills[0],
@@ -566,6 +549,45 @@ export default function Home() {
   const activeGroup =
     attributeGroups.find((group) => group.name === activeAttribute) ??
     attributeGroups[0];
+  const primaryTask =
+    tasks.find((task) => task.state === "today") ??
+    tasks.find((task) => task.state === "upcoming");
+  const nextExam = tasks.find(
+    (task) => task.type === "Examen" && task.state !== "done",
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRealData() {
+      try {
+        const [tasksResponse, checkinsResponse] = await Promise.all([
+          fetch("/api/tasks", { cache: "no-store" }),
+          fetch("/api/checkins", { cache: "no-store" }),
+        ]);
+        if (!tasksResponse.ok || !checkinsResponse.ok) {
+          throw new Error("No se pudieron cargar los datos.");
+        }
+
+        const tasksPayload = (await tasksResponse.json()) as { tasks: Task[] };
+        const checkinsPayload = (await checkinsResponse.json()) as {
+          checkins: Partial<typeof habits>;
+        };
+        if (cancelled) return;
+
+        setTasks(tasksPayload.tasks);
+        setHabits((current) => ({ ...current, ...checkinsPayload.checkins }));
+        setDataStatus("ready");
+      } catch {
+        if (!cancelled) setDataStatus("error");
+      }
+    }
+
+    loadRealData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function notify(message: string) {
     setToast(message);
@@ -583,43 +605,86 @@ export default function Home() {
     }
   }
 
-  function toggleHabit(key: keyof typeof habits) {
-    setHabits((current) => ({ ...current, [key]: !current[key] }));
+  async function toggleHabit(key: keyof typeof habits) {
+    const completed = !habits[key];
+    setHabits((current) => ({ ...current, [key]: completed }));
+    try {
+      const response = await fetch("/api/checkins", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ habitKey: key, completed }),
+      });
+      if (!response.ok) throw new Error("No se pudo guardar.");
+    } catch {
+      setHabits((current) => ({ ...current, [key]: !completed }));
+      notify("No se pudo guardar el no negociable. Inténtalo otra vez.");
+    }
   }
 
-  function toggleTask(id: number) {
+  async function toggleTask(id: string) {
+    const currentTask = tasks.find((task) => task.id === id);
+    if (!currentTask) return;
+    const nextState: TaskState = currentTask.state === "done" ? "today" : "done";
     setTasks((current) =>
       current.map((task) =>
-        task.id === id
-          ? { ...task, state: task.state === "done" ? "today" : "done" }
-          : task,
+        task.id === id ? { ...task, state: nextState } : task,
       ),
     );
+    try {
+      const response = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, state: nextState }),
+      });
+      if (!response.ok) throw new Error("No se pudo guardar.");
+      const payload = (await response.json()) as { task: Task };
+      setTasks((current) =>
+        current.map((task) => (task.id === id ? payload.task : task)),
+      );
+    } catch {
+      setTasks((current) =>
+        current.map((task) => (task.id === id ? currentTask : task)),
+      );
+      notify("No se pudo actualizar la tarea.");
+    }
   }
 
-  function saveQuickEntry() {
+  async function saveQuickEntry() {
     if (!note.trim()) {
       notify("Escribe una descripción breve antes de guardar.");
       return;
     }
 
     if (entryType === "Tarea" || entryType === "Examen") {
-      setTasks((current) => [
-        ...current,
-        {
-          id: Date.now(),
-          title: note.trim(),
-          subject: "Sin materia",
-          due: taskDate || "Sin fecha",
-          type: entryType,
-          state: taskDate ? "upcoming" : "today",
-        },
-      ]);
+      try {
+        const response = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: note.trim(),
+            subject: taskSubject.trim() || "General",
+            dueDate: taskDate || null,
+            type: entryType,
+          }),
+        });
+        const payload = (await response.json()) as { task?: Task; error?: string };
+        if (!response.ok || !payload.task) {
+          throw new Error(payload.error || "No se pudo guardar.");
+        }
+        setTasks((current) => [...current, payload.task as Task]);
+      } catch (error) {
+        notify(error instanceof Error ? error.message : "No se pudo guardar.");
+        return;
+      }
+    } else {
+      notify("Este tipo de registro se conectará en la siguiente etapa.");
+      return;
     }
 
     setModal(null);
     setNote("");
     setTaskDate("");
+    setTaskSubject("");
     notify(`${entryType} registrada correctamente.`);
   }
 
@@ -675,7 +740,7 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Domingo, 26 de julio</p>
+            <p className="eyebrow">{todayLabel()}</p>
             <h1>
               {view === "today" && "Buenas noches, Andre"}
               {view === "studies" && "Planificador"}
@@ -686,6 +751,13 @@ export default function Home() {
             </h1>
           </div>
           <div className="player-status">
+            <span className={`data-status data-status--${dataStatus}`}>
+              {dataStatus === "ready"
+                ? "Datos reales"
+                : dataStatus === "loading"
+                  ? "Cargando"
+                  : "Sin conexión"}
+            </span>
             <div className="season-pill">Temporada 1 · Semana 1</div>
             <div className="level-badge">12</div>
             <div className="xp-summary">
@@ -708,9 +780,17 @@ export default function Home() {
               <div className="mission-card__content">
                 <p className="eyebrow">Misión principal</p>
                 <span className="mission-glyph">◆</span>
-                <h2>Bases de Datos:<br />simulacro práctico</h2>
+                <h2>
+                  {primaryTask ? (
+                    <>{primaryTask.subject}:<br />{primaryTask.title}</>
+                  ) : (
+                    <>Elige tu primera<br />misión real</>
+                  )}
+                </h2>
                 <p className="mission-copy">
-                  Resuelve sin ayuda. Al terminar, registra en qué fallaste.
+                  {primaryTask
+                    ? `Vence: ${formatTaskDate(primaryTask.dueDate, primaryTask.state)}. Al terminar, registra el resultado.`
+                    : "Añade una tarea o examen y aparecerá aquí como tu siguiente movimiento."}
                 </p>
                 <div className="mission-meta">
                   <span>◷ <strong>45 min</strong></span>
@@ -720,11 +800,19 @@ export default function Home() {
                   className={`primary-action ${
                     missionStatus === "active" ? "primary-action--active" : ""
                   }`}
-                  onClick={startMission}
+                  onClick={() => {
+                    if (primaryTask) {
+                      startMission();
+                    } else {
+                      setEntryType("Tarea");
+                      setModal("quick");
+                    }
+                  }}
                 >
-                  {missionStatus === "pending" && "Iniciar misión"}
-                  {missionStatus === "active" && "Finalizar misión"}
-                  {missionStatus === "done" && "Misión cumplida"}
+                  {!primaryTask && "Registrar primera misión"}
+                  {primaryTask && missionStatus === "pending" && "Iniciar misión"}
+                  {primaryTask && missionStatus === "active" && "Finalizar misión"}
+                  {primaryTask && missionStatus === "done" && "Misión cumplida"}
                   <span>→</span>
                 </button>
               </div>
@@ -735,8 +823,12 @@ export default function Home() {
                 <div className="card-icon">▦</div>
                 <div>
                   <p className="eyebrow">Próxima evaluación</p>
-                  <h3>Bases de Datos</h3>
-                  <p className="evaluation-date">✦ Viernes · 8:00 a. m.</p>
+                  <h3>{nextExam?.title ?? "Sin examen registrado"}</h3>
+                  <p className="evaluation-date">
+                    ✦ {nextExam
+                      ? `${nextExam.subject} · ${formatTaskDate(nextExam.dueDate, nextExam.state)}`
+                      : "Añádelo en el Planificador"}
+                  </p>
                   <div className="preparation-row">
                     <span>Preparación comprobada</span>
                     <strong>3 de 5 fases</strong>
@@ -885,7 +977,7 @@ export default function Home() {
                             </span>
                             <h4>{task.title}</h4>
                             <p>{task.subject}</p>
-                            <small>{task.due}</small>
+                            <small>{formatTaskDate(task.dueDate, task.state)}</small>
                           </div>
                         </article>
                       ))}
@@ -1567,14 +1659,25 @@ export default function Home() {
             />
           </label>
           {(entryType === "Tarea" || entryType === "Examen") && (
-            <label className="field field--date">
-              <span>Fecha</span>
-              <input
-                type="date"
-                value={taskDate}
-                onChange={(event) => setTaskDate(event.target.value)}
-              />
-            </label>
+            <div className="field-row">
+              <label className="field">
+                <span>Materia o área</span>
+                <input
+                  type="text"
+                  value={taskSubject}
+                  onChange={(event) => setTaskSubject(event.target.value)}
+                  placeholder="Ej.: Estadística"
+                />
+              </label>
+              <label className="field field--date">
+                <span>Fecha</span>
+                <input
+                  type="date"
+                  value={taskDate}
+                  onChange={(event) => setTaskDate(event.target.value)}
+                />
+              </label>
+            </div>
           )}
           <div className="modal__actions">
             <button className="ghost-action" onClick={() => setModal(null)}>

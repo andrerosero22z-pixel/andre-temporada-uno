@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Temporada Uno · Andre",
   description:
-    "Prototipo del sistema personal gamificado de estudios, hábitos y progreso de Andre.",
+    "Sistema personal gamificado de estudios, hábitos y progreso de Andre.",
   other: {
     "codex-preview": "development",
   },

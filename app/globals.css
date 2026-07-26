@@ -331,6 +331,31 @@ textarea:focus-visible {
   gap: 14px;
 }
 
+.data-status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid rgba(131, 168, 216, .24);
+  border-radius: 999px;
+  background: rgba(57, 77, 118, .18);
+  color: #a9bfdc;
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: .08em;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.data-status--ready {
+  border-color: rgba(205, 168, 102, .3);
+  color: var(--gold-bright);
+}
+
+.data-status--error {
+  border-color: rgba(217, 133, 115, .35);
+  color: #e1a08f;
+}
+
 .season-pill {
   min-width: max-content;
   border: 1px solid rgba(216, 183, 109, .52);
@@ -2450,6 +2475,17 @@ button.heat-cell:hover {
   padding: 0 13px;
 }
 
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(150px, .8fr);
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.field-row .field--date {
+  margin-top: 0;
+}
+
 .modal__actions {
   display: flex;
   justify-content: flex-end;
@@ -2799,6 +2835,7 @@ button.heat-cell:hover {
   .mobile-nav .mobile-nav__active {
     color: var(--gold-bright);
   }
+  .field-row { grid-template-columns: 1fr; }
   .modal { padding: 27px 19px; }
   .segmented,
   .segmented--five { grid-template-columns: 1fr 1fr; }
