@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-type View = "today" | "studies" | "progress" | "habits" | "journal";
+type View = "today" | "studies" | "progress" | "goals" | "habits" | "journal";
 type MissionStatus = "pending" | "active" | "done";
 type TaskState = "today" | "upcoming" | "done";
 
@@ -37,6 +37,7 @@ const navItems: { id: View; label: string; icon: string }[] = [
   { id: "today", label: "Hoy", icon: "✦" },
   { id: "studies", label: "Planificador", icon: "▦" },
   { id: "progress", label: "Progreso", icon: "⌁" },
+  { id: "goals", label: "Metas", icon: "◎" },
   { id: "habits", label: "Hábitos", icon: "◌" },
   { id: "journal", label: "Diario", icon: "✎" },
 ];
@@ -139,8 +140,16 @@ const attributeGroups: AttributeGroup[] = [
     level: 6,
     icon: "⌁",
     color: "#b57d68",
-    description: "Fuerza, resistencia y cuidado corporal medidos con acciones reales.",
+    description: "Composición corporal, rendimiento, salud y apariencia medidos con acciones reales.",
     skills: [
+      {
+        name: "Composición corporal",
+        level: 3,
+        xp: 65,
+        next: 180,
+        evidence: "Medición inicial pendiente",
+        focus: "Registrar peso, cintura y una estimación responsable de grasa corporal.",
+      },
       {
         name: "Fuerza",
         level: 7,
@@ -164,6 +173,22 @@ const attributeGroups: AttributeGroup[] = [
         next: 200,
         evidence: "8 días registrados",
         focus: "Mejorar la constancia de las comidas.",
+      },
+      {
+        name: "Movilidad y postura",
+        level: 3,
+        xp: 72,
+        next: 170,
+        evidence: "4 rutinas breves",
+        focus: "Hacer movilidad tres veces por semana y revisar la postura.",
+      },
+      {
+        name: "Apariencia y cuidado",
+        level: 4,
+        xp: 105,
+        next: 210,
+        evidence: "Higiene y presentación registradas",
+        focus: "Construir una rutina sostenible de piel, cabello, ropa y presentación.",
       },
     ],
   },
@@ -301,6 +326,56 @@ const heatmap = [
   2, 1, 2, 2, 1, 0, 1,
   2, 2, 1, 3, 2, 1, 0,
   3, 2, 2, 3, 2, 2, 1,
+];
+
+const goals = [
+  {
+    title: "Llegar al 12% de grasa corporal",
+    area: "Físico · composición corporal",
+    current: "Medición inicial pendiente",
+    target: "12%",
+    date: "Fecha por definir",
+    progress: 8,
+    color: "#b98275",
+    next: "Registrar peso, cintura y estimación inicial antes de fijar el ritmo.",
+    checkpoints: ["Medición inicial", "18%", "15%", "12%"],
+  },
+  {
+    title: "Cerrar bien el semestre",
+    area: "Carrera · Ciencia de Datos",
+    current: "3 materias al día",
+    target: "5 aprobadas",
+    date: "Fin del periodo",
+    progress: 60,
+    color: "#9a8cc2",
+    next: "Proteger el simulacro de Bases de Datos del viernes.",
+    checkpoints: ["Diagnóstico", "Práctica", "Simulacros", "Evaluaciones"],
+  },
+  {
+    title: "Publicar un caso de portafolio",
+    area: "Dinero y trabajo",
+    current: "Dataset elegido",
+    target: "Proyecto publicado",
+    date: "Temporada 1",
+    progress: 32,
+    color: "#c19b70",
+    next: "Terminar la limpieza y documentar las decisiones.",
+    checkpoints: ["Pregunta", "Limpieza", "Análisis", "Publicación"],
+  },
+];
+
+const bodyMetrics = [
+  { label: "Peso", value: "Por registrar", trend: "Línea base" },
+  { label: "Cintura", value: "Por registrar", trend: "Línea base" },
+  { label: "Grasa estimada", value: "Por registrar", trend: "Meta: 12%" },
+  { label: "Energía", value: "6.8 / 10", trend: "+0.6 este mes" },
+];
+
+const nonNegotiables = [
+  { name: "Oración", minimum: "5 minutos", purpose: "Volver a la brújula incluso en un día difícil.", rate: 93 },
+  { name: "Higiene básica", minimum: "Rutina esencial", purpose: "No abandonar el cuidado personal en exámenes.", rate: 96 },
+  { name: "Estudio mínimo", minimum: "20 minutos", purpose: "Mantener el contacto con la materia aunque el plan falle.", rate: 84 },
+  { name: "Movimiento", minimum: "10 minutos", purpose: "Evitar convertir un día ocupado en abandono total.", rate: 71 },
 ];
 
 const initialTasks: Task[] = [
@@ -472,7 +547,7 @@ export default function Home() {
     planning: false,
     sleep: false,
   });
-  const [modal, setModal] = useState<"quick" | "close" | "study" | null>(null);
+  const [modal, setModal] = useState<"quick" | "close" | "study" | "recovery" | null>(null);
   const [toast, setToast] = useState("");
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
@@ -605,6 +680,7 @@ export default function Home() {
               {view === "today" && "Buenas noches, Andre"}
               {view === "studies" && "Planificador"}
               {view === "progress" && "Mapa de progreso"}
+              {view === "goals" && "Metas y evolución"}
               {view === "habits" && "Seguimiento de hábitos"}
               {view === "journal" && "Diario de campaña"}
             </h1>
@@ -672,8 +748,8 @@ export default function Home() {
               <section className="minimums-card panel">
                 <div className="section-heading">
                   <div>
-                    <p className="eyebrow">Constancia diaria</p>
-                    <h3>Hábitos de hoy</h3>
+                  <p className="eyebrow">Identidad protegida</p>
+                  <h3>No negociables de hoy</h3>
                   </div>
                   <span>{completedHabits}/5</span>
                 </div>
@@ -699,6 +775,9 @@ export default function Home() {
                     );
                   })}
                 </div>
+                <button className="minimum-recovery" onClick={() => setModal("recovery")}>
+                  ¿Día difícil? Activar plan mínimo <span>→</span>
+                </button>
               </section>
             </aside>
 
@@ -1087,6 +1166,124 @@ export default function Home() {
           </div>
         )}
 
+        {view === "goals" && (
+          <div className="content-view goals-view">
+            <section className="goals-hero panel">
+              <div>
+                <p className="eyebrow">Resultados con dirección</p>
+                <h2>Las metas convierten tu propósito en algo que sí puedes alcanzar.</h2>
+                <p>
+                  Cada meta separa el resultado, la situación actual, los checkpoints
+                  y el siguiente paso. Los hábitos sostienen el proceso; la meta indica hacia dónde vas.
+                </p>
+              </div>
+              <button className="secondary-action" onClick={() => { setEntryType("Meta"); setModal("quick"); }}>
+                + Nueva meta
+              </button>
+            </section>
+
+            <section className="goal-grid">
+              {goals.map((goal) => (
+                <article className="goal-card panel" key={goal.title}>
+                  <div className="goal-card__top">
+                    <span style={{ color: goal.color }}>◎</span>
+                    <small>{goal.area}</small>
+                    <b>{goal.progress}%</b>
+                  </div>
+                  <h3>{goal.title}</h3>
+                  <div className="goal-values">
+                    <div><small>Situación actual</small><strong>{goal.current}</strong></div>
+                    <span>→</span>
+                    <div><small>Resultado</small><strong>{goal.target}</strong></div>
+                  </div>
+                  <ProgressBar value={goal.progress} accent={goal.color} />
+                  <div className="checkpoint-row">
+                    {goal.checkpoints.map((checkpoint, index) => (
+                      <span
+                        className={index / (goal.checkpoints.length - 1) <= goal.progress / 100
+                          ? "checkpoint checkpoint--reached"
+                          : "checkpoint"}
+                        key={checkpoint}
+                      >
+                        <i /><small>{checkpoint}</small>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="goal-next"><small>Siguiente movimiento</small><p>{goal.next}</p></div>
+                  <footer>
+                    <span>◷ {goal.date}</span>
+                    <button onClick={() => notify(`Abriste el plan de “${goal.title}”.`)}>Ver plan →</button>
+                  </footer>
+                </article>
+              ))}
+            </section>
+
+            <section className="physical-evolution panel">
+              <div className="physical-evolution__copy">
+                <p className="eyebrow">Físico · apariencia y salud</p>
+                <h3>Composición corporal sin convertir tu cuerpo en una nota.</h3>
+                <p>
+                  La apariencia se observa con resultados controlables: medidas, postura,
+                  cuidado, fuerza y constancia. El 12% primero necesita una línea base y un plazo saludable.
+                </p>
+                <button className="ghost-action" onClick={() => { setEntryType("Medición"); setModal("quick"); }}>
+                  + Registrar medición
+                </button>
+              </div>
+              <div className="metric-grid">
+                {bodyMetrics.map((metric) => (
+                  <article key={metric.label}>
+                    <small>{metric.label}</small><strong>{metric.value}</strong><span>{metric.trend}</span>
+                  </article>
+                ))}
+              </div>
+              <div className="body-trend">
+                <div className="body-trend__head"><span>Evolución mensual</span><small>Se activará con tus mediciones</small></div>
+                <div className="body-trend__chart">
+                  {[34, 37, 36, 44, 49, 55, 61, 68].map((value, index) => <i key={index} style={{ height: `${value}%` }} />)}
+                </div>
+              </div>
+            </section>
+
+            <section className="season-and-rewards">
+              <article className="season-card panel">
+                <p className="eyebrow">Temporada 1 · 8 semanas</p>
+                <div className="season-card__title">
+                  <div><h3>El despertar</h3><p>Recuperar dominio en estudios, cuerpo y rutina.</p></div>
+                  <span>1/8</span>
+                </div>
+                <ProgressBar value={12.5} accent="var(--gold)" />
+                <div className="season-bosses">
+                  <div><span>Jefe académico</span><strong>Examen de Bases</strong><small>Viernes</small></div>
+                  <div><span>Desafío físico</span><strong>4 entrenamientos</strong><small>1 de 4</small></div>
+                  <div><span>Desafío de carácter</span><strong>7 cierres diarios</strong><small>2 de 7</small></div>
+                </div>
+              </article>
+              <article className="rewards-card panel">
+                <div className="rewards-card__head"><div><p className="eyebrow">Recompensas</p><h3>Botín ganado</h3></div><span>◇ 340</span></div>
+                <div className="reward-list">
+                  <button onClick={() => notify("Recompensa bloqueada: faltan 60 monedas.")}><span>☕</span><div><strong>Salida o comida especial</strong><small>400 monedas</small></div><i>Bloqueada</i></button>
+                  <button onClick={() => notify("Título equipado: Aprendiz constante.")}><span>✦</span><div><strong>Título: Aprendiz constante</strong><small>Racha de 7 días</small></div><i>Ganado</i></button>
+                  <button onClick={() => notify("Se desbloquea al cerrar la semana.")}><span>◈</span><div><strong>Noche libre sin culpa</strong><small>Cierre semanal ≥ 80%</small></div><i>En progreso</i></button>
+                </div>
+              </article>
+            </section>
+
+            <section className="review-recovery">
+              <article className="review-card panel">
+                <div><p className="eyebrow">Revisión semanal · domingo</p><h3>Mirar, aprender y ajustar.</h3><p>Compara metas, hábitos, energía y resultados. Después elige una mejora concreta.</p></div>
+                <div className="review-score"><span>76%</span><small>semana actual</small></div>
+                <button onClick={() => notify("La revisión semanal se abrirá con tus datos reales.")}>Iniciar revisión →</button>
+              </article>
+              <article className="recovery-card panel">
+                <span className="recovery-card__icon">↺</span>
+                <div><p className="eyebrow">Modo recuperación</p><h3>Una mala semana no borra la temporada.</h3><p>Reduce la carga, protege los no negociables y crea una misión de regreso.</p></div>
+                <button className="ghost-action" onClick={() => setModal("recovery")}>Activar modo</button>
+              </article>
+            </section>
+          </div>
+        )}
+
         {view === "habits" && (
           <div className="content-view habits-view">
             <section className="habits-hero panel">
@@ -1187,6 +1384,30 @@ export default function Home() {
               </article>
             </section>
 
+            <section className="non-negotiables panel">
+              <div className="section-heading">
+                <div><p className="eyebrow">Base del personaje</p><h3>No negociables</h3></div>
+                <span>Modo normal</span>
+              </div>
+              <p className="section-copy">
+                Son el mínimo que protege tu identidad cuando el día se complica.
+                Si se abandonan por decisión, aparece una misión de recuperación.
+              </p>
+              <div className="non-negotiable-grid">
+                {nonNegotiables.map((item) => (
+                  <article key={item.name}>
+                    <div><span>◆</span><strong>{item.name}</strong><b>{item.rate}%</b></div>
+                    <small>Mínimo: {item.minimum}</small>
+                    <p>{item.purpose}</p>
+                    <ProgressBar value={item.rate} accent={item.rate < 75 ? "#b98275" : "#d3ac66"} small />
+                  </article>
+                ))}
+              </div>
+              <button className="minimum-recovery" onClick={() => setModal("recovery")}>
+                Configurar modo de día difícil <span>→</span>
+              </button>
+            </section>
+
             <section className="habit-table panel">
               <div className="section-heading">
                 <div>
@@ -1268,6 +1489,18 @@ export default function Home() {
                 </button>
               </div>
             </section>
+            <section className="reflection-cycles panel">
+              <p className="eyebrow">Ciclos de revisión</p>
+              <h3>No solo registrar: interpretar y corregir.</h3>
+              <div>
+                <button onClick={() => notify("Revisión semanal preparada para el domingo.")}>
+                  <span>7 días</span><strong>Revisión semanal</strong><small>Hábitos, metas, energía y una decisión</small>
+                </button>
+                <button onClick={() => notify("La revisión mensual necesita cuatro semanas de datos.")}>
+                  <span>30 días</span><strong>Revisión mensual</strong><small>Tendencias, resultados y nuevo enfoque</small>
+                </button>
+              </div>
+            </section>
             <section className="journal-list">
               <div className="section-heading">
                 <div>
@@ -1310,7 +1543,7 @@ export default function Home() {
           onClose={() => setModal(null)}
         >
           <div className="segmented segmented--five">
-            {["Sesión de estudio", "Tarea", "Examen", "Hábito", "Diario"].map((type) => (
+            {["Sesión de estudio", "Tarea", "Examen", "Hábito", "Meta", "Medición", "Diario"].map((type) => (
               <button
                 key={type}
                 className={entryType === type ? "segmented__active" : ""}
@@ -1415,6 +1648,31 @@ export default function Home() {
             }}
           >
             Confirmar cierre
+          </button>
+        </Modal>
+      )}
+
+      {modal === "recovery" && (
+        <Modal title="Modo de día difícil" eyebrow="Recuperar sin abandonar" onClose={() => setModal(null)}>
+          <p className="recovery-intro">
+            El sistema reduce el día a cuatro mínimos y pausa las misiones secundarias.
+            La misión principal solo se conserva si tiene una fecha crítica.
+          </p>
+          <div className="recovery-plan">
+            <div><span>☼</span><strong>Oración</strong><small>5 min</small></div>
+            <div><span>♢</span><strong>Higiene básica</strong><small>Rutina esencial</small></div>
+            <div><span>▦</span><strong>Estudio mínimo</strong><small>20 min</small></div>
+            <div><span>↗</span><strong>Movimiento</strong><small>10 min</small></div>
+          </div>
+          <label className="field">
+            <span>¿Qué está ocurriendo hoy?</span>
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej.: dormí muy poco y tengo un examen mañana." />
+          </label>
+          <button
+            className="primary-action modal-primary full-button"
+            onClick={() => { setModal(null); setNote(""); notify("Modo de día difícil activado. Protege los cuatro mínimos."); }}
+          >
+            Activar plan mínimo
           </button>
         </Modal>
       )}
