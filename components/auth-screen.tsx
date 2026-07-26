@@ -5,10 +5,32 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function AuthScreen({ loading = false }: { loading?: boolean }) {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState(
-    loading ? "Comprobando tu sesión…" : "",
-  );
+  const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function signInWithGoogle() {
+    setGoogleLoading(true);
+    setStatus("");
+    try {
+      const client = getSupabaseBrowserClient();
+      const { error } = await client.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+          scopes: "openid email profile",
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "No pudimos iniciar sesión con Google.",
+      );
+      setGoogleLoading(false);
+    }
+  }
 
   async function sendMagicLink(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,22 +77,40 @@ export function AuthScreen({ loading = false }: { loading?: boolean }) {
             Comprobando tu sesión…
           </div>
         ) : (
-          <form onSubmit={sendMagicLink}>
-            <label>
-              Correo
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="tu@correo.com"
-                autoComplete="email"
-                required
-              />
-            </label>
-            <button className="primary-button" disabled={sending} type="submit">
-              {sending ? "Enviando…" : "Entrar con enlace seguro"}
+          <>
+            <button
+              className="google-button"
+              disabled={googleLoading}
+              onClick={signInWithGoogle}
+              type="button"
+            >
+              <span aria-hidden="true">G</span>
+              {googleLoading ? "Abriendo Google…" : "Continuar con Google"}
             </button>
-          </form>
+
+            <div className="auth-divider">
+              <span />
+              <small>o entra por correo</small>
+              <span />
+            </div>
+
+            <form onSubmit={sendMagicLink}>
+              <label>
+                Correo
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="tu@correo.com"
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <button className="primary-button" disabled={sending} type="submit">
+                {sending ? "Enviando…" : "Entrar con enlace seguro"}
+              </button>
+            </form>
+          </>
         )}
 
         {status && !loading && (
@@ -79,8 +119,8 @@ export function AuthScreen({ loading = false }: { loading?: boolean }) {
           </p>
         )}
         <small>
-          No necesitas crear otra contraseña. El enlace solo funciona durante
-          unos minutos.
+          Google solo se usa para identificarte. No pedimos acceso a Drive,
+          Calendar ni a tus correos.
         </small>
       </section>
     </main>

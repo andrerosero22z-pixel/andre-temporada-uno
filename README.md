@@ -8,7 +8,7 @@ una web privada instalable.
 
 Ya usan datos reales de Supabase:
 
-- Acceso mediante enlace seguro enviado al correo.
+- Acceso con Google o mediante enlace seguro enviado al correo.
 - Materias creadas desde el planificador.
 - Tareas.
 - Exámenes y otras evaluaciones.
