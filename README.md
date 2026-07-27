@@ -4,6 +4,8 @@ Sistema personal gamificado para organizar estudios, hábitos, metas y evidencia
 de progreso. La aplicación está pensada primero para Andre y se publica como
 una web instalable en Vercel.
 
+Producción: <https://andre-temporada-uno.vercel.app>
+
 ## Estado actual
 
 Ya usan datos reales de Supabase:
