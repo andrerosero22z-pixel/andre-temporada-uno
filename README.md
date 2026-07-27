@@ -2,7 +2,7 @@
 
 Sistema personal gamificado para organizar estudios, hábitos, metas y evidencia
 de progreso. La aplicación está pensada primero para Andre y se publica como
-una web privada instalable.
+una web instalable en Vercel.
 
 ## Estado actual
 
@@ -33,7 +33,7 @@ valores desde evidencia real.
 - `lib/supabase/client.ts`: cliente público de Supabase.
 - `lib/supabase/dashboard.ts`: consultas y transformaciones del núcleo real.
 - `supabase/migrations/`: versión controlada del esquema PostgreSQL.
-- `.openai/hosting.json`: vínculo con el sitio publicado.
+- `next.config.ts`: configuración de la aplicación Next.js.
 
 ## Configuración local
 
@@ -54,8 +54,8 @@ npm install
 npm run dev
 ```
 
-La compilación de producción usa Vinext y Cloudflare Workers mediante el flujo
-de Sites incluido en este repositorio.
+La compilación de producción usa Next.js estándar y está preparada para
+desplegarse en Vercel.
 
 ## Criterio de evolución
 
