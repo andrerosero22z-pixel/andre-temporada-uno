@@ -1173,10 +1173,10 @@ export default function Home() {
                 </p>
               </div>
               <div className="overview-level">
-                <span>12</span>
+                <span>{globalLevel}</span>
                 <div>
                   <small>Nivel global</small>
-                  <strong>15 habilidades activas</strong>
+                  <strong>{storedSkills.length} habilidades con evidencia</strong>
                 </div>
               </div>
             </section>
@@ -1239,19 +1239,18 @@ export default function Home() {
                 <div className="degree-bar">
                   <div>
                     <span>Avance del pénsum</span>
-                    <strong>56%</strong>
+                    <strong>{realLifeStats[3].value}%</strong>
                   </div>
-                  <ProgressBar value={56} accent="#9a8cc2" />
-                  <small>18 aprobadas · 5 cursando · 9 pendientes</small>
+                  <ProgressBar value={realLifeStats[3].value} accent="#9a8cc2" />
+                  <small>{subjectData.filter((subject) => subject.status === "passed").length} aprobadas · {subjectData.filter((subject) => subject.status === "studying").length} cursando · {subjectData.filter((subject) => subject.status === "pending").length} pendientes</small>
                 </div>
               </div>
               <div className="term-card">
                 <span>Periodo actual</span>
-                <strong>5 materias</strong>
-                <div><small>Al día</small><b>3</b></div>
-                <div><small>En riesgo</small><b className="warning-text">1</b></div>
-                <div><small>Próxima evaluación</small><b>5 días</b></div>
-                <em>Datos de ejemplo para el prototipo</em>
+                <strong>{subjectData.filter((subject) => subject.status === "studying").length} materias</strong>
+                <div><small>Sin pendientes</small><b>{subjectData.filter((subject) => subject.status === "studying" && subject.pendingItems === 0).length}</b></div>
+                <div><small>Con pendientes</small><b className="warning-text">{subjectData.filter((subject) => subject.status === "studying" && subject.pendingItems > 0).length}</b></div>
+                <div><small>Próxima evaluación</small><b>{nextExam ? formatTaskDate(nextExam.dueDate, nextExam.state) : "Ninguna"}</b></div>
               </div>
             </section>
 
