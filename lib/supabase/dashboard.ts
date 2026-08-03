@@ -35,6 +35,7 @@ const digitalDefinitions = {
   shortVideoMinutes: { title: "Videos cortos", unit: "min" },
   gamingMinutes: { title: "Videojuegos", unit: "min" },
   intentionalLeisureMinutes: { title: "Ocio intencional", unit: "min" },
+  stimulationFastMinutes: { title: "Ayuno de estímulos", unit: "min" },
 } as const;
 
 type SubjectRow = {
@@ -214,6 +215,7 @@ function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
     shortVideoMinutes: null,
     gamingMinutes: null,
     intentionalLeisureMinutes: null,
+    stimulationFastMinutes: null,
   };
   for (const [key, definition] of Object.entries(digitalDefinitions)) {
     const habit = habits.find((candidate) => candidate.title === definition.title);
@@ -235,6 +237,7 @@ function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
       shortVideoMinutes: null,
       gamingMinutes: null,
       intentionalLeisureMinutes: null,
+      stimulationFastMinutes: null,
     };
 
     for (const [key, habitId] of Object.entries(digitalHabitIds)) {

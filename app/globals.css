@@ -1813,7 +1813,7 @@ textarea:focus-visible {
 
 .purpose-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 21px;
   padding: 24px 27px;
@@ -3717,8 +3717,13 @@ button:disabled {
 }
 
 .player-status {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+}
+
+.xp-summary {
+  width: 180px;
+  min-width: 180px;
 }
 
 .goals-hero {
@@ -3863,7 +3868,7 @@ button:disabled {
 
 .dopamine-metric-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -4129,6 +4134,103 @@ button:disabled {
 .attention-protocol li strong { font-size: 9px; }
 .attention-protocol li small { color: var(--muted); font-size: 8px; }
 
+.stimulation-fast {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr);
+  align-items: center;
+  gap: 38px;
+  padding: 30px;
+  background:
+    radial-gradient(circle at 82% 50%, rgba(114,168,145,.14), transparent 28%),
+    linear-gradient(145deg, rgba(17,29,43,.97), rgba(8,15,25,.98));
+}
+
+.stimulation-fast h3,
+.campaign-library h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 500;
+}
+
+.stimulation-fast__copy > p:not(.eyebrow) {
+  max-width: 720px;
+  margin: 9px 0 18px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.stimulation-fast__score {
+  display: grid;
+  gap: 10px;
+  border-left: 1px solid rgba(114,168,145,.2);
+  padding-left: 30px;
+}
+
+.stimulation-fast__score > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.stimulation-fast__score > strong {
+  color: var(--emerald);
+  font-family: var(--serif);
+  font-size: 42px;
+  font-weight: 500;
+}
+
+.stimulation-fast__score > strong small { font-size: 18px; }
+
+.stimulation-fast__score > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--cream);
+  font-size: 9px;
+}
+
+.stimulation-fast__score > div span { display: grid; gap: 2px; }
+.stimulation-fast__score > div small { color: var(--muted); font-size: 7px; text-transform: uppercase; }
+
+.campaign-library { display: grid; gap: 13px; }
+.campaign-library__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+
+.book-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: start;
+  gap: 13px;
+  padding: 20px;
+}
+
+.book-card > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(205,168,102,.28);
+  border-radius: 10px;
+  color: var(--gold);
+}
+
+.book-card small { color: var(--gold); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.book-card h4 { margin: 4px 0 0; font-family: var(--serif); font-size: 20px; font-weight: 500; }
+.book-card p { margin: 4px 0 0; color: var(--muted); font-size: 9px; }
+.book-card button {
+  grid-column: 2;
+  width: max-content;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 9px;
+  padding: 3px 0;
+}
+
 @keyframes orbit-spin {
   to { transform: rotate(360deg); }
 }
@@ -4148,8 +4250,7 @@ button:disabled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .dopamine-metric:nth-child(4),
-  .dopamine-metric:nth-child(5) {
+  .dopamine-metric:nth-child(n+4) {
     min-height: 118px;
   }
 
@@ -4176,6 +4277,19 @@ button:disabled {
   .attention-grid {
     grid-template-columns: 1fr;
   }
+
+  .stimulation-fast {
+    grid-template-columns: 1fr;
+  }
+
+  .stimulation-fast__score {
+    border-top: 1px solid rgba(114,168,145,.2);
+    border-left: 0;
+    padding-top: 22px;
+    padding-left: 0;
+  }
+
+  .campaign-library__grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -4190,7 +4304,13 @@ button:disabled {
     width: auto;
   }
 
+  .xp-summary {
+    width: 62px;
+    min-width: 62px;
+  }
+
   .build-badge,
+  .season-pill,
   .sign-out {
     display: none;
   }
@@ -4225,6 +4345,8 @@ button:disabled {
     grid-column: auto;
   }
 
+  .stimulation-fast { padding: 22px; }
+
   .digital-chart {
     height: 170px;
     gap: 5px;
@@ -4245,4 +4367,16 @@ button:disabled {
   .attention-protocol,
   .attention-insight { padding: 20px; }
   .goal-grid--empty .empty-state { padding: 22px; }
+}
+
+@media (max-height: 820px) and (min-width: 761px) {
+  .sidebar { padding-block: 16px 14px; }
+  .brand { min-height: 54px; padding-bottom: 10px; }
+  .brand-mark { width: 42px; height: 42px; flex-basis: 42px; }
+  .main-nav { gap: 1px; margin-top: 7px; }
+  .nav-item { min-height: 41px; }
+  .sidebar__season { margin: auto 9px 10px; padding: 13px 16px; }
+  .sidebar__season p { margin-bottom: 3px; }
+  .sidebar__season strong { font-size: 18px; }
+  .profile-chip { padding-top: 9px; }
 }

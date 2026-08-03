@@ -79,11 +79,18 @@ const minimumItems: { key: HabitKey; icon: LucideIcon; title: string; detail: st
 ];
 
 const digitalMetricCards: { key: keyof DigitalWellbeing; label: string; detail: string; icon: LucideIcon }[] = [
-  { key: "screenTimeMinutes", label: "Celular total", detail: "Todo el uso registrado hoy", icon: Smartphone },
-  { key: "socialMediaMinutes", label: "Redes sociales", detail: "Feeds y mensajería social", icon: MessageCircleMore },
+  { key: "screenTimeMinutes", label: "Celular total", detail: "Uso registrado hoy", icon: Smartphone },
+  { key: "socialMediaMinutes", label: "Redes sociales", detail: "Feeds y mensajería", icon: MessageCircleMore },
   { key: "shortVideoMinutes", label: "Videos cortos", detail: "Reels, Shorts y TikTok", icon: Play },
-  { key: "gamingMinutes", label: "Videojuegos", detail: "Juego elegido o automático", icon: Gamepad2 },
-  { key: "intentionalLeisureMinutes", label: "Ocio intencional", detail: "Descanso que decidiste", icon: MoonStar },
+  { key: "gamingMinutes", label: "Videojuegos", detail: "Tiempo de juego", icon: Gamepad2 },
+  { key: "intentionalLeisureMinutes", label: "Ocio intencional", detail: "Descanso elegido", icon: MoonStar },
+  { key: "stimulationFastMinutes", label: "Ayuno de estímulos", detail: "Sin feeds, videos ni juegos", icon: Clock3 },
+];
+
+const attentionBooks = [
+  { title: "Hábitos atómicos", author: "James Clear", theme: "Sistema y constancia" },
+  { title: "Trabajo profundo", author: "Cal Newport", theme: "Concentración" },
+  { title: "Nación dopamina", author: "Anna Lembke", theme: "Recompensa y compulsión" },
 ];
 
 const phases = [
@@ -445,6 +452,7 @@ export default function Home() {
     shortVideoMinutes: null,
     gamingMinutes: null,
     intentionalLeisureMinutes: null,
+    stimulationFastMinutes: null,
   });
   const [digitalHistory, setDigitalHistory] = useState<DigitalDay[]>([]);
   const [digitalHabitIds, setDigitalHabitIds] = useState<Record<string, string>>({});
@@ -462,7 +470,7 @@ export default function Home() {
   const [unit, setUnit] = useState("");
   const [mood, setMood] = useState("3");
   const [studyMode, setStudyMode] = useState<"reading" | "guided" | "practice" | "independent" | "simulation">("practice");
-  const [digitalForm, setDigitalForm] = useState({ screen: "", social: "", shortVideo: "", gaming: "", leisure: "" });
+  const [digitalForm, setDigitalForm] = useState({ screen: "", social: "", shortVideo: "", gaming: "", leisure: "", fast: "" });
   const [bodyForm, setBodyForm] = useState({ weight: "", waist: "", fat: "", energy: "", sleep: "" });
 
   const completedHabits = useMemo(
@@ -513,7 +521,7 @@ export default function Home() {
   const recentDigitalDays = digitalHistory.slice(-7);
   const recordedDigitalDays = recentDigitalDays.filter((day) => day.screenTimeMinutes !== null);
   const averageDigital = (key: keyof DigitalWellbeing) => {
-    const values = recordedDigitalDays
+    const values = recentDigitalDays
       .map((day) => day[key])
       .filter((value): value is number => value !== null);
     return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
@@ -521,6 +529,11 @@ export default function Home() {
   const rapidStimuliToday = (digitalWellbeing.socialMediaMinutes ?? 0) + (digitalWellbeing.shortVideoMinutes ?? 0);
   const classifiedScreenToday = rapidStimuliToday + (digitalWellbeing.gamingMinutes ?? 0);
   const unclassifiedScreenToday = Math.max(0, (digitalWellbeing.screenTimeMinutes ?? 0) - classifiedScreenToday);
+  const attentionControlToday = digitalWellbeing.screenTimeMinutes === null
+    ? null
+    : digitalWellbeing.screenTimeMinutes === 0
+      ? 100
+      : Math.max(0, Math.min(100, Math.round(((digitalWellbeing.screenTimeMinutes - rapidStimuliToday) / digitalWellbeing.screenTimeMinutes) * 100)));
   const digitalInsight = digitalWellbeing.screenTimeMinutes === null
     ? "Registra al menos tres días para descubrir cuándo el celular te ayuda y cuándo empieza a dirigir tu atención."
     : rapidStimuliToday >= 90
@@ -758,6 +771,7 @@ export default function Home() {
           shortVideoMinutes: numberOrNull(digitalForm.shortVideo),
           gamingMinutes: numberOrNull(digitalForm.gaming),
           intentionalLeisureMinutes: numberOrNull(digitalForm.leisure),
+          stimulationFastMinutes: numberOrNull(digitalForm.fast),
         });
       } else if (entryType === "Diario") {
         await saveJournalEntry(client, userId, note.trim(), Number(mood) || null);
@@ -877,7 +891,6 @@ export default function Home() {
           <div>
             <span>Proyecto personal</span>
             <strong>Temporada Uno</strong>
-            <small className="brand-version">V2 · RPG</small>
           </div>
         </div>
 
@@ -927,21 +940,14 @@ export default function Home() {
               {view === "today" && "Buenas noches, Andre"}
               {view === "studies" && "Planificador"}
               {view === "progress" && "Mapa de progreso"}
-              {view === "goals" && "Metas y evolución"}
-              {view === "habits" && "Seguimiento de hábitos"}
-              {view === "dopamine" && "Dopamina y atención"}
-              {view === "journal" && "Diario de campaña"}
+              {view === "goals" && "Metas"}
+              {view === "habits" && "Hábitos"}
+              {view === "dopamine" && "Atención"}
+              {view === "journal" && "Diario"}
             </h1>
           </div>
           <div className="player-status">
-            <span className="build-badge">Versión 2 · RPG</span>
-            <span className={`data-status data-status--${dataStatus}`}>
-              {dataStatus === "ready"
-                ? "Supabase · núcleo real"
-                : dataStatus === "loading"
-                  ? "Cargando"
-                  : "Sin conexión"}
-            </span>
+            {dataStatus === "error" && <span className="data-status data-status--error">Sin conexión</span>}
             <div className="season-pill">Temporada 1 · Semana 1</div>
             <div className="level-badge">{globalLevel}</div>
             <div className="xp-summary">
@@ -1074,21 +1080,11 @@ export default function Home() {
           <div className="content-view">
             <section className="planner-header panel">
               <div>
-                <p className="eyebrow">Tareas, exámenes y prácticas</p>
-                <h2>Todo lo académico, sin llenar veinte campos.</h2>
-                <p>
-                  Registra lo que debes hacer, ponle fecha y el sistema conserva
-                  el siguiente paso de preparación.
-                </p>
+                <p className="eyebrow">Estudios</p>
+                <h2>Tu ruta académica.</h2>
+                <p>Tareas, exámenes y prácticas con fecha y siguiente paso.</p>
               </div>
               <div className="planner-actions">
-                <button
-                  className="ghost-action calendar-action"
-                  disabled
-                >
-                  ◫ Calendario
-                  <small>Próximamente</small>
-                </button>
                 <button className="secondary-action" onClick={() => setModal("quick")}>
                   + Registrar
                 </button>
@@ -1189,17 +1185,17 @@ export default function Home() {
               ))}
               {subjectData.length === 0 && (
                 <article className="empty-state panel">
-                  <strong>Aún no hay materias</strong>
-                  <p>Tu primera tarea o examen creará automáticamente la materia.</p>
-                  <button className="secondary-action" onClick={() => { setEntryType("Tarea"); setModal("quick"); }}>Registrar la primera</button>
+                  <strong>Sin materias</strong>
+                  <p>Crea una al registrar tu primera tarea o examen.</p>
+                  <button className="secondary-action" onClick={() => { setEntryType("Tarea"); setModal("quick"); }}>Registrar</button>
                 </article>
               )}
             </section>
 
-            <section className="path-card panel">
+            {nextExam && <section className="path-card panel">
               <div className="path-card__heading">
                 <div>
-                  <p className="eyebrow">Bases de Datos · examen del viernes</p>
+                  <p className="eyebrow">{nextExam.subject} · {nextExam.title}</p>
                   <h3>Ruta de preparación</h3>
                 </div>
                 <span>0 de 5 fases</span>
@@ -1219,7 +1215,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-            </section>
+            </section>}
           </div>
         )}
 
@@ -1246,19 +1242,10 @@ export default function Home() {
             <section className="purpose-card panel">
               <span className="purpose-card__compass">✦</span>
               <div>
-                <p className="eyebrow">Propósito · la brújula, no una nota</p>
-                <h3>Crecer con Dios, terminar Ciencia de Datos y construir una vida con dominio propio.</h3>
-                <p>
-                  El propósito orienta las decisiones y temporadas. No sube ni
-                  baja como si tu fe o tu valor personal fueran un porcentaje.
-                </p>
+                <p className="eyebrow">Disciplina</p>
+                <h3>La disciplina de hoy evita el arrepentimiento de mañana.</h3>
+                <p>Crecer con Dios · dominar Ciencia de Datos · vivir con dominio propio.</p>
               </div>
-              <button
-                className="ghost-action"
-                disabled
-              >
-                Editar brújula · próximamente
-              </button>
             </section>
 
             <section className="life-state panel">
@@ -1439,12 +1426,9 @@ export default function Home() {
           <div className="content-view goals-view">
             <section className="goals-hero panel">
               <div>
-                <p className="eyebrow">Resultados con dirección</p>
-                <h2>Las metas convierten tu propósito en algo que sí puedes alcanzar.</h2>
-                <p>
-                  Cada meta separa el resultado, la situación actual, los checkpoints
-                  y el siguiente paso. Los hábitos sostienen el proceso; la meta indica hacia dónde vas.
-                </p>
+                <p className="eyebrow">Dirección</p>
+                <h2>Define el resultado. Construye el camino.</h2>
+                <p>Línea base, objetivo, fecha y siguiente paso.</p>
               </div>
               <button className="secondary-action" onClick={() => { setEntryType("Meta"); setModal("quick"); }}>
                 + Nueva meta
@@ -1732,13 +1716,9 @@ export default function Home() {
           <div className="content-view dopamine-view">
             <section className="dopamine-hero panel">
               <div className="dopamine-hero__copy">
-                <p className="eyebrow">Atención · estímulos · descanso</p>
-                <h2>No buscamos “cero dopamina”. Buscamos recuperar el control de tu atención.</h2>
-                <p>
-                  Aquí registras conductas observables: celular, redes, videos cortos,
-                  videojuegos y ocio intencional. La página te ayuda a separar uso elegido
-                  de consumo automático sin inventar una medición biológica.
-                </p>
+                <p className="eyebrow">Atención</p>
+                <h2>Entrena tu atención.</h2>
+                <p>Mide celular, estímulos rápidos, ocio elegido y bloques sin pantallas.</p>
                 <button className="primary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>
                   Registrar el día
                 </button>
@@ -1746,8 +1726,8 @@ export default function Home() {
               <div className="attention-orbit" aria-hidden="true">
                 <span className="attention-orbit__ring" />
                 <span className="attention-orbit__ring attention-orbit__ring--two" />
-                <strong>{rapidStimuliToday}</strong>
-                <small>min rápidos</small>
+                <strong>{attentionControlToday ?? "—"}</strong>
+                <small>% control</small>
               </div>
             </section>
 
@@ -1787,12 +1767,13 @@ export default function Home() {
 
               <article className="attention-balance panel">
                 <p className="eyebrow">Lectura de hoy</p>
-                <h3>¿A dónde fue tu atención?</h3>
+                <h3>Balance de atención</h3>
                 <div className="attention-balance__rows">
+                  <div className="attention-balance__positive"><span>Control de atención</span><strong>{attentionControlToday == null ? "—" : `${attentionControlToday}%`}</strong><small>Porción del celular fuera de redes y videos cortos</small></div>
                   <div><span>Estímulos rápidos</span><strong>{rapidStimuliToday} min</strong><small>Redes + videos cortos</small></div>
                   <div><span>Gaming</span><strong>{digitalWellbeing.gamingMinutes ?? 0} min</strong><small>Entretenimiento interactivo</small></div>
                   <div><span>Uso sin clasificar</span><strong>{unclassifiedScreenToday} min</strong><small>Estudio, mensajes, utilidades u otros</small></div>
-                  <div className="attention-balance__positive"><span>Ocio intencional</span><strong>{digitalWellbeing.intentionalLeisureMinutes ?? 0} min</strong><small>Descanso elegido conscientemente</small></div>
+                  <div><span>Ocio intencional</span><strong>{digitalWellbeing.intentionalLeisureMinutes ?? 0} min</strong><small>Descanso elegido conscientemente</small></div>
                 </div>
               </article>
             </section>
@@ -1808,6 +1789,7 @@ export default function Home() {
                   <div><dt>Celular</dt><dd>{averageDigital("screenTimeMinutes")} min/día</dd></div>
                   <div><dt>Estímulos rápidos</dt><dd>{averageDigital("socialMediaMinutes") + averageDigital("shortVideoMinutes")} min/día</dd></div>
                   <div><dt>Ocio elegido</dt><dd>{averageDigital("intentionalLeisureMinutes")} min/día</dd></div>
+                  <div><dt>Ayuno de estímulos</dt><dd>{averageDigital("stimulationFastMinutes")} min/día</dd></div>
                 </dl>
               </article>
               <article className="attention-protocol panel">
@@ -1819,6 +1801,36 @@ export default function Home() {
                   <li><span>3</span><div><strong>Cierra conscientemente</strong><small>No esperes a que el feed decida.</small></div></li>
                 </ol>
               </article>
+            </section>
+
+            <section className="stimulation-fast panel">
+              <div className="stimulation-fast__copy">
+                <p className="eyebrow">Ayuno de estímulos</p>
+                <h3>Recupera el mando.</h3>
+                <p>Un bloque sin feeds, videos cortos ni videojuegos. Puedes caminar, orar, leer o estudiar sin multitarea.</p>
+                <button className="secondary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>Registrar bloque</button>
+              </div>
+              <div className="stimulation-fast__score">
+                <span>Hoy</span>
+                <strong>{digitalWellbeing.stimulationFastMinutes ?? 0}<small> min</small></strong>
+                <ProgressBar value={Math.min(100, ((digitalWellbeing.stimulationFastMinutes ?? 0) / 120) * 100)} accent="var(--emerald)" />
+                <div><span>30 <small>reinicio</small></span><span>60 <small>bloque limpio</small></span><span>120 <small>reto profundo</small></span></div>
+              </div>
+            </section>
+
+            <section className="campaign-library">
+              <div className="section-heading">
+                <div><p className="eyebrow">Biblioteca</p><h3>Lecturas para entrenar el criterio</h3></div>
+              </div>
+              <div className="campaign-library__grid">
+                {attentionBooks.map((book) => (
+                  <article className="book-card panel" key={book.title}>
+                    <span><BookOpenText aria-hidden="true" size={20} strokeWidth={1.7} /></span>
+                    <div><small>{book.theme}</small><h4>{book.title}</h4><p>{book.author}</p></div>
+                    <button onClick={() => { setEntryType("Tarea"); setTaskSubject("Lectura"); setNote(`Leer: ${book.title}`); setModal("quick"); }}>Planear lectura</button>
+                  </article>
+                ))}
+              </div>
             </section>
           </div>
         )}
@@ -1860,7 +1872,6 @@ export default function Home() {
               <div className="section-heading">
                 <div>
                   <p className="eyebrow">Bitácora</p>
-                  <h3>Entradas recientes</h3>
                 </div>
               </div>
               {journalData.map((entry) => (
@@ -1875,8 +1886,8 @@ export default function Home() {
               ))}
               {journalData.length === 0 && (
                 <article className="empty-state panel">
-                  <strong>Tu bitácora empieza vacía</strong>
-                  <p>La primera reflexión que guardes aparecerá aquí.</p>
+                  <strong>Sin entradas</strong>
+                  <p>Escribe tu primera reflexión.</p>
                 </article>
               )}
             </section>
@@ -2006,13 +2017,14 @@ export default function Home() {
           )}
           {entryType === "Pantallas" && (
             <>
-              <p className="form-help">Copia los minutos desde Bienestar digital. “Estímulos rápidos” se observa mediante redes y videos cortos; no intentamos medir dopamina biológica.</p>
+              <p className="form-help">Copia los minutos desde Bienestar digital. Medimos conducta, no dopamina biológica.</p>
               <div className="metric-form-grid">
                 <label className="field"><span>Celular total</span><input type="number" min="0" value={digitalForm.screen} onChange={(event) => setDigitalForm((current) => ({ ...current, screen: event.target.value }))} /></label>
                 <label className="field"><span>Redes sociales</span><input type="number" min="0" value={digitalForm.social} onChange={(event) => setDigitalForm((current) => ({ ...current, social: event.target.value }))} /></label>
                 <label className="field"><span>Videos cortos</span><input type="number" min="0" value={digitalForm.shortVideo} onChange={(event) => setDigitalForm((current) => ({ ...current, shortVideo: event.target.value }))} /></label>
                 <label className="field"><span>Videojuegos</span><input type="number" min="0" value={digitalForm.gaming} onChange={(event) => setDigitalForm((current) => ({ ...current, gaming: event.target.value }))} /></label>
                 <label className="field"><span>Ocio intencional</span><input type="number" min="0" value={digitalForm.leisure} onChange={(event) => setDigitalForm((current) => ({ ...current, leisure: event.target.value }))} /></label>
+                <label className="field"><span>Ayuno de estímulos</span><input type="number" min="0" value={digitalForm.fast} onChange={(event) => setDigitalForm((current) => ({ ...current, fast: event.target.value }))} /></label>
               </div>
             </>
           )}

@@ -90,6 +90,7 @@ export type DigitalWellbeing = {
   shortVideoMinutes: number | null;
   gamingMinutes: number | null;
   intentionalLeisureMinutes: number | null;
+  stimulationFastMinutes: number | null;
 };
 
 export type DigitalDay = DigitalWellbeing & {

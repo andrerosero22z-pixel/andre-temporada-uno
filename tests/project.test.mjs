@@ -38,10 +38,23 @@ test("gives dopamine and attention a real view with seven-day history", async ()
   ]);
 
   assert.match(page, /id: "dopamine"/);
-  assert.match(page, /Dopamina y atención/);
+  assert.match(page, /Entrena tu atención/);
   assert.match(page, /Mapa de consumo digital/);
+  assert.match(page, /Ayuno de estímulos/);
+  assert.match(page, /Hábitos atómicos/);
   assert.match(dashboard, /digitalHistory/);
+  assert.match(dashboard, /stimulationFastMinutes/);
   assert.match(types, /DigitalDay/);
+  assert.match(types, /stimulationFastMinutes/);
+});
+
+test("keeps technical labels and fake academic progress out of the interface", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(page, /Supabase · núcleo real/);
+  assert.doesNotMatch(page, /Versión 2 · RPG/);
+  assert.doesNotMatch(page, /Bases de Datos · examen del viernes/);
+  assert.match(page, /nextExam && <section className="path-card panel">/);
 });
 
 test("keeps the authenticated dashboard inside the viewport with game icons", async () => {
