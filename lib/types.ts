@@ -38,6 +38,66 @@ export type AttributeGroup = {
   skills: Skill[];
 };
 
+export type SubjectSummary = {
+  id: string;
+  name: string;
+  status: "pending" | "studying" | "passed" | "failed";
+  progress: number;
+  pendingItems: number;
+  nextItem: string;
+};
+
+export type GoalRecord = {
+  id: string;
+  title: string;
+  reason: string;
+  currentValue: number | null;
+  targetValue: number | null;
+  unit: string;
+  targetDate: string | null;
+};
+
+export type BodyMeasurement = {
+  recordedOn: string;
+  weightKg: number | null;
+  bodyFatPercent: number | null;
+  waistCm: number | null;
+  energyLevel: number | null;
+  sleepHours: number | null;
+};
+
+export type JournalEntry = {
+  id: string;
+  date: string;
+  body: string;
+  mood: number | null;
+};
+
+export type HabitOverview = {
+  id: string;
+  title: string;
+  habitType: "habit" | "non_negotiable";
+  goal: string;
+  streak: number;
+  rate: number;
+  week: boolean[];
+};
+
+export type DigitalWellbeing = {
+  screenTimeMinutes: number | null;
+  socialMediaMinutes: number | null;
+  shortVideoMinutes: number | null;
+  gamingMinutes: number | null;
+  intentionalLeisureMinutes: number | null;
+};
+
+export type StoredSkill = {
+  id: string;
+  name: string;
+  xp: number;
+  evidenceCount: number;
+};
+
 export type HabitKey =
   | "prayer"
   | "hygiene"
@@ -47,3 +107,20 @@ export type HabitKey =
 
 export type HabitState = Record<HabitKey, boolean>;
 export type HabitIds = Partial<Record<HabitKey, string>>;
+
+export type DashboardData = {
+  tasks: Task[];
+  checkins: HabitState;
+  ids: HabitIds;
+  subjects: SubjectSummary[];
+  goals: GoalRecord[];
+  bodyMeasurement: BodyMeasurement | null;
+  journalEntries: JournalEntry[];
+  habitRows: HabitOverview[];
+  heatmap: number[];
+  digitalWellbeing: DigitalWellbeing;
+  digitalHabitIds: Record<string, string>;
+  skills: StoredSkill[];
+  totalXp: number;
+  coins: number;
+};

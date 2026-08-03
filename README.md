@@ -15,14 +15,19 @@ Ya usan datos reales de Supabase:
 - Tareas.
 - Exámenes y otras evaluaciones.
 - No negociables del día.
+- Sesiones de estudio y evidencia de habilidades.
+- Metas y mediciones corporales.
+- Hábitos personalizados e historial de 28 días.
+- Tiempo de celular, redes, videos cortos, videojuegos y ocio intencional.
+- Diario y cierre del día.
 
-Todavía son datos de demostración:
+Comienzan en cero y todavía necesitan más reglas de producto:
 
-- Niveles, XP y monedas.
-- Barras generales y habilidades.
-- Metas y mediciones físicas.
-- Gráficas históricas.
-- Diario y revisiones.
+- Monedas y tienda de recompensas.
+- Edición del propósito.
+- Progreso detallado de las fases de cada examen.
+- Sincronización con Google Calendar.
+- Revisión mensual y análisis automático de patrones.
 
 Es importante conservar esta distinción hasta que cada módulo calcule sus
 valores desde evidencia real.

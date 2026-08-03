@@ -3,19 +3,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { AuthScreen } from "@/components/auth-screen";
 import {
+  createGoal,
+  createHabit,
   createPlannerItem,
   loadDashboardData,
+  saveBodyMeasurement,
+  saveDigitalWellbeing,
+  saveJournalEntry,
+  saveStudySession,
   setHabitCheckin,
   setPlannerItemCompleted,
 } from "@/lib/supabase/dashboard";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
   AttributeGroup,
+  BodyMeasurement,
+  DashboardData,
+  DigitalWellbeing,
+  GoalRecord,
   HabitIds,
   HabitKey,
+  HabitOverview,
   HabitState,
+  JournalEntry,
   MissionStatus,
   Skill,
+  StoredSkill,
+  SubjectSummary,
   Task,
   TaskState,
   View,
@@ -31,38 +45,11 @@ const navItems: { id: View; label: string; icon: string }[] = [
 ];
 
 const phases = [
-  { label: "Diagnóstico", state: "done" },
-  { label: "Comprensión", state: "done" },
-  { label: "Práctica guiada", state: "done" },
-  { label: "Práctica solo", state: "active" },
+  { label: "Diagnóstico", state: "pending" },
+  { label: "Comprensión", state: "pending" },
+  { label: "Práctica guiada", state: "pending" },
+  { label: "Práctica solo", state: "pending" },
   { label: "Simulacro", state: "pending" },
-];
-
-const subjects = [
-  {
-    name: "Bases de Datos",
-    kind: "Práctica",
-    progress: 68,
-    next: "Examen · viernes",
-    tasks: 3,
-    color: "#83a8d8",
-  },
-  {
-    name: "Probabilidad y Estadística",
-    kind: "Mixta",
-    progress: 46,
-    next: "Taller · 30 jul",
-    tasks: 2,
-    color: "#d3ac66",
-  },
-  {
-    name: "Programación con Python",
-    kind: "Práctica",
-    progress: 57,
-    next: "Proyecto · lunes",
-    tasks: 1,
-    color: "#a995cf",
-  },
 ];
 
 const attributeGroups: AttributeGroup[] = [
@@ -256,116 +243,6 @@ const attributeGroups: AttributeGroup[] = [
   },
 ];
 
-const lifeStats = [
-  {
-    name: "Disciplina",
-    value: 73,
-    detail: "Cumplimiento, puntualidad y recuperaciones",
-    change: "+6 esta semana",
-    color: "#d3ac66",
-  },
-  {
-    name: "Salud física",
-    value: 61,
-    detail: "Sueño, movimiento, entrenamiento y nutrición",
-    change: "+3 esta semana",
-    color: "#b98275",
-  },
-  {
-    name: "Enfoque mental",
-    value: 67,
-    detail: "Bloques profundos, descansos y saturación",
-    change: "+4 esta semana",
-    color: "#8fa9d7",
-  },
-  {
-    name: "Avance de carrera",
-    value: 56,
-    detail: "Materias aprobadas y periodo actual",
-    change: "18 de 32 materias",
-    color: "#9a8cc2",
-  },
-  {
-    name: "Orden financiero",
-    value: 48,
-    detail: "Registro, presupuesto, ahorro e ingresos",
-    change: "+8 este mes",
-    color: "#c19b70",
-  },
-  {
-    name: "Equilibrio personal",
-    value: 70,
-    detail: "Fe, descanso, relaciones y tiempo propio",
-    change: "estable",
-    color: "#7f9eb8",
-  },
-];
-
-const habitRows = [
-  { name: "Oración", goal: "Diario", streak: 8, rate: 86, week: [1, 1, 1, 1, 1, 0, 1] },
-  { name: "Higiene completa", goal: "Diario", streak: 6, rate: 93, week: [1, 1, 1, 1, 1, 1, 0] },
-  { name: "Estudio profundo", goal: "5× semana", streak: 4, rate: 78, week: [1, 1, 0, 1, 1, 0, 1] },
-  { name: "Entrenamiento", goal: "4× semana", streak: 2, rate: 64, week: [1, 0, 1, 0, 1, 0, 0] },
-  { name: "Dormir a tiempo", goal: "5× semana", streak: 3, rate: 57, week: [0, 1, 1, 0, 1, 0, 1] },
-];
-
-const heatmap = [
-  1, 2, 2, 1, 0, 2, 1,
-  2, 1, 2, 2, 1, 0, 1,
-  2, 2, 1, 3, 2, 1, 0,
-  3, 2, 2, 3, 2, 2, 1,
-];
-
-const goals = [
-  {
-    title: "Llegar al 12% de grasa corporal",
-    area: "Físico · composición corporal",
-    current: "Medición inicial pendiente",
-    target: "12%",
-    date: "Fecha por definir",
-    progress: 8,
-    color: "#b98275",
-    next: "Registrar peso, cintura y estimación inicial antes de fijar el ritmo.",
-    checkpoints: ["Medición inicial", "18%", "15%", "12%"],
-  },
-  {
-    title: "Cerrar bien el semestre",
-    area: "Carrera · Ciencia de Datos",
-    current: "3 materias al día",
-    target: "5 aprobadas",
-    date: "Fin del periodo",
-    progress: 60,
-    color: "#9a8cc2",
-    next: "Proteger el simulacro de Bases de Datos del viernes.",
-    checkpoints: ["Diagnóstico", "Práctica", "Simulacros", "Evaluaciones"],
-  },
-  {
-    title: "Publicar un caso de portafolio",
-    area: "Dinero y trabajo",
-    current: "Dataset elegido",
-    target: "Proyecto publicado",
-    date: "Temporada 1",
-    progress: 32,
-    color: "#c19b70",
-    next: "Terminar la limpieza y documentar las decisiones.",
-    checkpoints: ["Pregunta", "Limpieza", "Análisis", "Publicación"],
-  },
-];
-
-const bodyMetrics = [
-  { label: "Peso", value: "Por registrar", trend: "Línea base" },
-  { label: "Cintura", value: "Por registrar", trend: "Línea base" },
-  { label: "Grasa estimada", value: "Por registrar", trend: "Meta: 12%" },
-  { label: "Energía", value: "6.8 / 10", trend: "+0.6 este mes" },
-];
-
-const nonNegotiables = [
-  { name: "Oración", minimum: "5 minutos", purpose: "Volver a la brújula incluso en un día difícil.", rate: 93 },
-  { name: "Higiene básica", minimum: "Rutina esencial", purpose: "No abandonar el cuidado personal en exámenes.", rate: 96 },
-  { name: "Estudio mínimo", minimum: "20 minutos", purpose: "Mantener el contacto con la materia aunque el plan falle.", rate: 84 },
-  { name: "Movimiento", minimum: "10 minutos", purpose: "Evitar convertir un día ocupado en abandono total.", rate: 71 },
-];
-
 const initialTasks: Task[] = [];
 
 function formatTaskDate(value: string | null, state: TaskState) {
@@ -389,21 +266,6 @@ function todayLabel() {
     month: "long",
   }).format(new Date());
 }
-
-const journalEntries = [
-  {
-    date: "Hoy · 8:40 p. m.",
-    title: "Lo que aprendí",
-    body: "Entendí mejor las transacciones. Todavía necesito resolver un ejercicio completo sin mirar el procedimiento.",
-    tag: "Estudio",
-  },
-  {
-    date: "Ayer · 10:12 p. m.",
-    title: "Un día imperfecto, no perdido",
-    body: "No fui al gimnasio, pero cumplí el bloque principal y preparé lo necesario para mañana.",
-    tag: "Reflexión",
-  },
-];
 
 function ProgressBar({
   value,
@@ -529,26 +391,132 @@ export default function Home() {
   const [taskDate, setTaskDate] = useState("");
   const [taskSubject, setTaskSubject] = useState("");
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [subjectData, setSubjectData] = useState<SubjectSummary[]>([]);
+  const [goalData, setGoalData] = useState<GoalRecord[]>([]);
+  const [bodyMeasurement, setBodyMeasurement] = useState<BodyMeasurement | null>(null);
+  const [journalData, setJournalData] = useState<JournalEntry[]>([]);
+  const [habitData, setHabitData] = useState<HabitOverview[]>([]);
+  const [heatmapData, setHeatmapData] = useState<number[]>(Array(28).fill(0));
+  const [digitalWellbeing, setDigitalWellbeing] = useState<DigitalWellbeing>({
+    screenTimeMinutes: null,
+    socialMediaMinutes: null,
+    shortVideoMinutes: null,
+    gamingMinutes: null,
+    intentionalLeisureMinutes: null,
+  });
+  const [digitalHabitIds, setDigitalHabitIds] = useState<Record<string, string>>({});
+  const [storedSkills, setStoredSkills] = useState<StoredSkill[]>([]);
+  const [totalXp, setTotalXp] = useState(0);
+  const [coins, setCoins] = useState(0);
+  const [habitPeriod, setHabitPeriod] = useState<7 | 28>(28);
   const [dataStatus, setDataStatus] = useState<"loading" | "ready" | "error">("loading");
   const [activeAttribute, setActiveAttribute] = useState("Ciencia de Datos");
-  const [selectedSkill, setSelectedSkill] = useState<Skill>(
-    attributeGroups[0].skills[0],
-  );
+  const [selectedSkillName, setSelectedSkillName] = useState(attributeGroups[0].skills[0].name);
+  const [saving, setSaving] = useState(false);
+  const [duration, setDuration] = useState("30");
+  const [numberValue, setNumberValue] = useState("");
+  const [targetValue, setTargetValue] = useState("");
+  const [unit, setUnit] = useState("");
+  const [mood, setMood] = useState("3");
+  const [studyMode, setStudyMode] = useState<"reading" | "guided" | "practice" | "independent" | "simulation">("practice");
+  const [digitalForm, setDigitalForm] = useState({ screen: "", social: "", shortVideo: "", gaming: "", leisure: "" });
+  const [bodyForm, setBodyForm] = useState({ weight: "", waist: "", fat: "", energy: "", sleep: "" });
 
   const completedHabits = useMemo(
     () => Object.values(habits).filter(Boolean).length,
     [habits],
   );
 
+  const realAttributeGroups = useMemo(() => attributeGroups.map((group) => {
+    const skills = group.skills.map((skill) => {
+      const stored = storedSkills.find((candidate) => candidate.name === skill.name);
+      const xp = stored?.xp ?? 0;
+      return {
+        ...skill,
+        level: Math.floor(xp / 100),
+        xp: xp % 100,
+        next: 100,
+        evidence: stored?.evidenceCount
+          ? `${stored.evidenceCount} evidencia${stored.evidenceCount === 1 ? "" : "s"}`
+          : "Sin evidencia registrada",
+      };
+    });
+    return { ...group, level: Math.floor(skills.reduce((sum, skill) => sum + skill.level, 0) / Math.max(1, skills.length)), skills };
+  }), [storedSkills]);
+
   const activeGroup =
-    attributeGroups.find((group) => group.name === activeAttribute) ??
-    attributeGroups[0];
+    realAttributeGroups.find((group) => group.name === activeAttribute) ??
+    realAttributeGroups[0];
+  const selectedSkill = activeGroup.skills.find((skill) => skill.name === selectedSkillName)
+    ?? activeGroup.skills[0];
   const primaryTask =
     tasks.find((task) => task.state === "today") ??
     tasks.find((task) => task.state === "upcoming");
   const nextExam = tasks.find(
     (task) => task.type === "Examen" && task.state !== "done",
   );
+  const globalLevel = Math.floor(totalXp / 500);
+  const levelXp = totalXp % 500;
+  const completedThisWeek = habitData.reduce(
+    (sum, habit) => sum + habit.week.filter(Boolean).length,
+    0,
+  );
+  const weeklyPossible = habitData.length * 7;
+  const weeklyRate = weeklyPossible
+    ? Math.round((completedThisWeek / weeklyPossible) * 100)
+    : 0;
+  const strongestHabit = [...habitData].sort((left, right) => right.streak - left.streak)[0];
+  const weakestHabit = [...habitData].sort((left, right) => left.rate - right.rate)[0];
+  const realLifeStats = [
+    { name: "Disciplina", value: weeklyRate, detail: "Cumplimiento de hábitos y no negociables", change: weeklyPossible ? `${completedThisWeek} de ${weeklyPossible} esta semana` : "Sin registros", color: "#d3ac66" },
+    { name: "Salud física", value: Math.round(((habitData.find((habit) => habit.title === "Movimiento")?.rate ?? 0) + (habitData.find((habit) => habit.title === "Dormir a tiempo")?.rate ?? 0)) / 2), detail: "Movimiento y descanso registrados", change: bodyMeasurement ? "Línea base registrada" : "Sin línea base", color: "#b98275" },
+    { name: "Enfoque mental", value: 0, detail: "Se activará con sesiones de enfoque y varios días de pantallas", change: digitalWellbeing.screenTimeMinutes === null ? "Sin registro de hoy" : `${digitalWellbeing.screenTimeMinutes} min de celular`, color: "#8fa9d7" },
+    { name: "Avance de carrera", value: subjectData.length ? Math.round((subjectData.filter((subject) => subject.status === "passed").length / subjectData.length) * 100) : 0, detail: "Materias aprobadas sobre materias registradas", change: subjectData.length ? `${subjectData.filter((subject) => subject.status === "passed").length} de ${subjectData.length} materias` : "Añade tu pénsum", color: "#9a8cc2" },
+    { name: "Orden financiero", value: 0, detail: "Presupuesto, ahorro e ingresos", change: "Aún sin registros", color: "#c19b70" },
+    { name: "Equilibrio personal", value: habitData.find((habit) => habit.title === "Oración")?.rate ?? 0, detail: "Fe, descanso y ocio intencional", change: digitalWellbeing.intentionalLeisureMinutes === null ? "Sin registro de ocio" : `${digitalWellbeing.intentionalLeisureMinutes} min intencionales`, color: "#7f9eb8" },
+  ];
+  const realBodyMetrics = [
+    { label: "Peso", value: bodyMeasurement?.weightKg == null ? "Por registrar" : `${bodyMeasurement.weightKg} kg`, trend: "Línea base" },
+    { label: "Cintura", value: bodyMeasurement?.waistCm == null ? "Por registrar" : `${bodyMeasurement.waistCm} cm`, trend: "Línea base" },
+    { label: "Grasa estimada", value: bodyMeasurement?.bodyFatPercent == null ? "Por registrar" : `${bodyMeasurement.bodyFatPercent}%`, trend: "Meta personal" },
+    { label: "Energía", value: bodyMeasurement?.energyLevel == null ? "Por registrar" : `${bodyMeasurement.energyLevel} / 5`, trend: bodyMeasurement?.recordedOn ?? "Línea base" },
+  ];
+  const plannerDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index);
+    const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    const parts = new Intl.DateTimeFormat("es-EC", { timeZone: "America/Guayaquil", weekday: "short", day: "numeric" }).formatToParts(date);
+    return {
+      iso,
+      day: parts.find((part) => part.type === "weekday")?.value ?? "",
+      date: parts.find((part) => part.type === "day")?.value ?? "",
+      count: tasks.filter((task) => task.dueDate === iso && task.state !== "done").length,
+      active: index === 0,
+    };
+  }), [tasks]);
+
+  function applyDashboardData(data: DashboardData) {
+    setTasks(data.tasks);
+    setHabits(data.checkins);
+    setHabitIds(data.ids);
+    setSubjectData(data.subjects);
+    setGoalData(data.goals);
+    setBodyMeasurement(data.bodyMeasurement);
+    setJournalData(data.journalEntries);
+    setHabitData(data.habitRows);
+    setHeatmapData(data.heatmap);
+    setDigitalWellbeing(data.digitalWellbeing);
+    setDigitalHabitIds(data.digitalHabitIds);
+    setStoredSkills(data.skills);
+    setTotalXp(data.totalXp);
+    setCoins(data.coins);
+  }
+
+  async function refreshData() {
+    if (!userId) return;
+    const data = await loadDashboardData(getSupabaseBrowserClient(), userId);
+    applyDashboardData(data);
+  }
 
   useEffect(() => {
     const client = getSupabaseBrowserClient();
@@ -596,9 +564,7 @@ export default function Home() {
         const data = await loadDashboardData(client, userId);
         if (cancelled) return;
 
-        setTasks(data.tasks);
-        setHabits(data.checkins);
-        setHabitIds(data.ids);
+        applyDashboardData(data);
         setDataStatus("ready");
       } catch {
         if (!cancelled) setDataStatus("error");
@@ -672,49 +638,165 @@ export default function Home() {
   }
 
   async function saveQuickEntry() {
-    if (!note.trim()) {
+    if (!userId) {
+      notify("Tu sesión expiró. Vuelve a entrar.");
+      return;
+    }
+    if (entryType !== "Pantallas" && entryType !== "Medición" && !note.trim()) {
       notify("Escribe una descripción breve antes de guardar.");
       return;
     }
 
-    if (entryType === "Tarea" || entryType === "Examen") {
-      if (!userId) {
-        notify("Tu sesión expiró. Vuelve a entrar.");
-        return;
+    const client = getSupabaseBrowserClient();
+    const numberOrNull = (value: string) => value === "" ? null : Number(value);
+    setSaving(true);
+    try {
+      if (entryType === "Tarea" || entryType === "Examen") {
+        await createPlannerItem(client, userId, {
+          title: note.trim(),
+          subject: taskSubject.trim() || "General",
+          dueDate: taskDate || null,
+          type: entryType,
+        });
+      } else if (entryType === "Sesión de estudio") {
+        await saveStudySession(client, userId, {
+          subject: taskSubject.trim() || "General",
+          skillName: selectedSkill.name,
+          durationMinutes: Math.max(1, Number(duration) || 0),
+          mode: studyMode,
+          notes: note.trim(),
+        });
+      } else if (entryType === "Hábito") {
+        await createHabit(client, userId, {
+          title: note.trim(),
+          targetAmount: Math.max(1, Number(targetValue) || 1),
+          unit: unit.trim() || "vez",
+        });
+      } else if (entryType === "Meta") {
+        await createGoal(client, userId, {
+          title: note.trim(),
+          currentValue: numberOrNull(numberValue),
+          targetValue: numberOrNull(targetValue),
+          unit: unit.trim(),
+          targetDate: taskDate || null,
+          reason: "",
+        });
+      } else if (entryType === "Medición") {
+        await saveBodyMeasurement(client, userId, {
+          weightKg: numberOrNull(bodyForm.weight),
+          waistCm: numberOrNull(bodyForm.waist),
+          bodyFatPercent: numberOrNull(bodyForm.fat),
+          energyLevel: numberOrNull(bodyForm.energy),
+          sleepHours: numberOrNull(bodyForm.sleep),
+        });
+      } else if (entryType === "Pantallas") {
+        await saveDigitalWellbeing(client, userId, digitalHabitIds, {
+          screenTimeMinutes: numberOrNull(digitalForm.screen),
+          socialMediaMinutes: numberOrNull(digitalForm.social),
+          shortVideoMinutes: numberOrNull(digitalForm.shortVideo),
+          gamingMinutes: numberOrNull(digitalForm.gaming),
+          intentionalLeisureMinutes: numberOrNull(digitalForm.leisure),
+        });
+      } else if (entryType === "Diario") {
+        await saveJournalEntry(client, userId, note.trim(), Number(mood) || null);
       }
-      try {
-        const data = await createPlannerItem(
-          getSupabaseBrowserClient(),
-          userId,
-          {
-            title: note.trim(),
-            subject: taskSubject.trim() || "General",
-            dueDate: taskDate || null,
-            type: entryType,
-          },
-        );
-        setTasks(data.tasks);
-        setHabits(data.checkins);
-        setHabitIds(data.ids);
-      } catch (error) {
-        notify(error instanceof Error ? error.message : "No se pudo guardar.");
-        return;
-      }
-    } else {
-      notify("Este tipo de registro se conectará en la siguiente etapa.");
-      return;
+      await refreshData();
+      setModal(null);
+      setNote("");
+      setTaskDate("");
+      setTaskSubject("");
+      setNumberValue("");
+      setTargetValue("");
+      setUnit("");
+      notify(`${entryType} guardado correctamente.`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setSaving(false);
     }
-
-    setModal(null);
-    setNote("");
-    setTaskDate("");
-    setTaskSubject("");
-    notify(`${entryType} registrada correctamente.`);
   }
 
   function selectAttribute(group: AttributeGroup) {
     setActiveAttribute(group.name);
-    setSelectedSkill(group.skills[0]);
+    setSelectedSkillName(group.skills[0].name);
+  }
+
+  async function saveJournal() {
+    if (!note.trim()) {
+      notify("Escribe primero una reflexión breve.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveJournalEntry(getSupabaseBrowserClient(), userId, note.trim(), Number(mood) || null);
+      await refreshData();
+      setNote("");
+      notify("Reflexión guardada en Supabase.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo guardar la reflexión.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function finishMission(result: string, index: number) {
+    if (!primaryTask) return;
+    setSaving(true);
+    try {
+      await saveStudySession(getSupabaseBrowserClient(), userId, {
+        subject: primaryTask.subject,
+        skillName: selectedSkill.name,
+        durationMinutes: 45,
+        mode: index === 3 ? "simulation" : index === 2 ? "independent" : index === 0 ? "guided" : "practice",
+        notes: result,
+      });
+      await setPlannerItemCompleted(getSupabaseBrowserClient(), primaryTask, true);
+      await refreshData();
+      setMissionStatus("done");
+      setModal(null);
+      notify("Misión y evidencia guardadas.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo cerrar la misión.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function closeDay() {
+    setSaving(true);
+    try {
+      const summary = note.trim() || `Cierre del día: ${completedHabits} de 5 no negociables.`;
+      await saveJournalEntry(getSupabaseBrowserClient(), userId, summary, Number(mood) || null);
+      await refreshData();
+      setModal(null);
+      setNote("");
+      notify("Día cerrado y guardado.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo cerrar el día.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function activateRecovery() {
+    setSaving(true);
+    try {
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      await createPlannerItem(getSupabaseBrowserClient(), userId, {
+        title: "Plan mínimo: oración, higiene, 20 min de estudio y 10 min de movimiento",
+        subject: "Recuperación",
+        dueDate: today,
+        type: "Tarea",
+      });
+      await refreshData();
+      setModal(null);
+      setNote("");
+      notify("Plan mínimo creado como misión real de hoy.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo activar la recuperación.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function signOut() {
@@ -766,7 +848,7 @@ export default function Home() {
           </span>
           <div>
             <strong>{userLabel}</strong>
-            <small>Nivel 12 · Aprendiz</small>
+            <small>Nivel {globalLevel} · Inicio real</small>
           </div>
         </div>
       </aside>
@@ -793,11 +875,11 @@ export default function Home() {
                   : "Sin conexión"}
             </span>
             <div className="season-pill">Temporada 1 · Semana 1</div>
-            <div className="level-badge">12</div>
+            <div className="level-badge">{globalLevel}</div>
             <div className="xp-summary">
               <span>Nivel global</span>
-              <strong>340 / 500 XP</strong>
-              <ProgressBar value={68} accent="var(--gold)" />
+              <strong>{levelXp} / 500 XP</strong>
+              <ProgressBar value={(levelXp / 500) * 100} accent="var(--gold)" />
             </div>
             <button className="sign-out" onClick={signOut} type="button">
               Salir
@@ -831,7 +913,7 @@ export default function Home() {
                 </p>
                 <div className="mission-meta">
                   <span>◷ <strong>45 min</strong></span>
-                  <span>✦ <strong>+120 XP</strong></span>
+                  <span>✦ <strong>XP según evidencia</strong></span>
                 </div>
                 <button
                   className={`primary-action ${
@@ -868,9 +950,9 @@ export default function Home() {
                   </p>
                   <div className="preparation-row">
                     <span>Preparación comprobada</span>
-                    <strong>3 de 5 fases</strong>
+                    <strong>0 de 5 fases</strong>
                   </div>
-                  <ProgressBar value={60} accent="var(--gold)" small />
+                  <ProgressBar value={0} accent="var(--gold)" small />
                 </div>
               </section>
 
@@ -940,9 +1022,7 @@ export default function Home() {
               <div className="planner-actions">
                 <button
                   className="ghost-action calendar-action"
-                  onClick={() =>
-                    notify("La sincronización con calendario llegará al conectar tus datos reales.")
-                  }
+                  disabled
                 >
                   ◫ Calendario
                   <small>Próximamente</small>
@@ -954,23 +1034,15 @@ export default function Home() {
             </section>
 
             <section className="week-strip panel" aria-label="Resumen semanal">
-              {[
-                ["Sáb", "25", "2", true],
-                ["Dom", "26", "1", false],
-                ["Lun", "27", "3", false],
-                ["Mar", "28", "1", false],
-                ["Mié", "29", "2", false],
-                ["Jue", "30", "2", false],
-                ["Vie", "31", "Examen", false],
-              ].map(([day, date, count, active]) => (
+              {plannerDays.map(({ iso, day, date, count, active }) => (
                 <button
-                  key={day as string}
+                  key={`${day}-${date}`}
                   className={active ? "week-day week-day--active" : "week-day"}
-                  onClick={() => notify(`Agenda del ${day} ${date}.`)}
+                  onClick={() => { setEntryType("Tarea"); setTaskDate(iso); setModal("quick"); }}
                 >
                   <small>{day}</small>
                   <strong>{date}</strong>
-                  <span>{count}</span>
+                  <span>{count || "—"}</span>
                 </button>
               ))}
             </section>
@@ -1033,26 +1105,33 @@ export default function Home() {
             </section>
 
             <section className="subject-grid">
-              {subjects.map((subject) => (
+              {subjectData.map((subject) => (
                 <article className="subject-card panel" key={subject.name}>
                   <div className="subject-card__top">
-                    <span className="subject-rune" style={{ color: subject.color }}>
+                    <span className="subject-rune" style={{ color: "#8fa9d7" }}>
                       ◆
                     </span>
-                    <span className="tag">{subject.kind}</span>
+                    <span className="tag">{subject.status === "passed" ? "Aprobada" : "En curso"}</span>
                   </div>
                   <h3>{subject.name}</h3>
-                  <p>{subject.next} · {subject.tasks} pendientes</p>
+                  <p>{subject.nextItem} · {subject.pendingItems} pendientes</p>
                   <div className="subject-card__progress">
                     <span>Dominio comprobado</span>
                     <strong>{subject.progress}%</strong>
                   </div>
-                  <ProgressBar value={subject.progress} accent={subject.color} small />
-                  <button onClick={() => notify(`Abriste ${subject.name}.`)}>
-                    Abrir materia <span>→</span>
+                  <ProgressBar value={subject.progress} accent="#8fa9d7" small />
+                  <button onClick={() => { setEntryType("Tarea"); setTaskSubject(subject.name); setModal("quick"); }}>
+                    Añadir pendiente <span>→</span>
                   </button>
                 </article>
               ))}
+              {subjectData.length === 0 && (
+                <article className="empty-state panel">
+                  <strong>Aún no hay materias</strong>
+                  <p>Tu primera tarea o examen creará automáticamente la materia.</p>
+                  <button className="secondary-action" onClick={() => { setEntryType("Tarea"); setModal("quick"); }}>Registrar la primera</button>
+                </article>
+              )}
             </section>
 
             <section className="path-card panel">
@@ -1061,7 +1140,7 @@ export default function Home() {
                   <p className="eyebrow">Bases de Datos · examen del viernes</p>
                   <h3>Ruta de preparación</h3>
                 </div>
-                <span>3 de 5 fases</span>
+                <span>0 de 5 fases</span>
               </div>
               <div className="phase-path">
                 {phases.map((phase, index) => (
@@ -1114,9 +1193,9 @@ export default function Home() {
               </div>
               <button
                 className="ghost-action"
-                onClick={() => notify("Aquí podrás editar tu propósito y tus principios.")}
+                disabled
               >
-                Editar brújula
+                Editar brújula · próximamente
               </button>
             </section>
 
@@ -1133,7 +1212,7 @@ export default function Home() {
                 reales; no con una opinión al azar.
               </p>
               <div className="life-stat-grid">
-                {lifeStats.map((stat) => (
+                {realLifeStats.map((stat) => (
                   <article className="life-stat" key={stat.name}>
                     <div className="life-stat__head">
                       <div>
@@ -1187,7 +1266,7 @@ export default function Home() {
             </div>
 
             <section className="attribute-tabs" aria-label="Caminos de habilidades">
-              {attributeGroups.map((group) => (
+              {realAttributeGroups.map((group) => (
                 <button
                   key={group.name}
                   className={
@@ -1232,7 +1311,7 @@ export default function Home() {
                       skill={skill}
                       color={activeGroup.color}
                       selected={selectedSkill.name === skill.name}
-                      onSelect={() => setSelectedSkill(skill)}
+                      onSelect={() => setSelectedSkillName(skill.name)}
                     />
                   ))}
                 </div>
@@ -1312,39 +1391,34 @@ export default function Home() {
             </section>
 
             <section className="goal-grid">
-              {goals.map((goal) => (
+              {goalData.map((goal) => (
                 <article className="goal-card panel" key={goal.title}>
                   <div className="goal-card__top">
-                    <span style={{ color: goal.color }}>◎</span>
-                    <small>{goal.area}</small>
-                    <b>{goal.progress}%</b>
+                    <span style={{ color: "#d3ac66" }}>◎</span>
+                    <small>Meta real</small>
+                    <b>0%</b>
                   </div>
                   <h3>{goal.title}</h3>
                   <div className="goal-values">
-                    <div><small>Situación actual</small><strong>{goal.current}</strong></div>
+                    <div><small>Situación actual</small><strong>{goal.currentValue ?? "Por registrar"} {goal.currentValue == null ? "" : goal.unit}</strong></div>
                     <span>→</span>
-                    <div><small>Resultado</small><strong>{goal.target}</strong></div>
+                    <div><small>Resultado</small><strong>{goal.targetValue ?? "Por definir"} {goal.targetValue == null ? "" : goal.unit}</strong></div>
                   </div>
-                  <ProgressBar value={goal.progress} accent={goal.color} />
-                  <div className="checkpoint-row">
-                    {goal.checkpoints.map((checkpoint, index) => (
-                      <span
-                        className={index / (goal.checkpoints.length - 1) <= goal.progress / 100
-                          ? "checkpoint checkpoint--reached"
-                          : "checkpoint"}
-                        key={checkpoint}
-                      >
-                        <i /><small>{checkpoint}</small>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="goal-next"><small>Siguiente movimiento</small><p>{goal.next}</p></div>
+                  <ProgressBar value={0} accent="#d3ac66" />
+                  <div className="goal-next"><small>Razón</small><p>{goal.reason || "Añade evidencia para construir el plan y medir el avance."}</p></div>
                   <footer>
-                    <span>◷ {goal.date}</span>
-                    <button onClick={() => notify(`Abriste el plan de “${goal.title}”.`)}>Ver plan →</button>
+                    <span>◷ {goal.targetDate ?? "Sin fecha"}</span>
+                    <button onClick={() => { setEntryType("Tarea"); setTaskSubject("Meta personal"); setNote(`Siguiente paso: ${goal.title}`); setModal("quick"); }}>Crear siguiente paso →</button>
                   </footer>
                 </article>
               ))}
+              {goalData.length === 0 && (
+                <article className="empty-state panel">
+                  <strong>Metas: 0</strong>
+                  <p>No inventamos progreso. Crea una meta con línea base, resultado y fecha.</p>
+                  <button className="secondary-action" onClick={() => { setEntryType("Meta"); setModal("quick"); }}>Crear primera meta</button>
+                </article>
+              )}
             </section>
 
             <section className="physical-evolution panel">
@@ -1360,7 +1434,7 @@ export default function Home() {
                 </button>
               </div>
               <div className="metric-grid">
-                {bodyMetrics.map((metric) => (
+                {realBodyMetrics.map((metric) => (
                   <article key={metric.label}>
                     <small>{metric.label}</small><strong>{metric.value}</strong><span>{metric.trend}</span>
                   </article>
@@ -1369,7 +1443,7 @@ export default function Home() {
               <div className="body-trend">
                 <div className="body-trend__head"><span>Evolución mensual</span><small>Se activará con tus mediciones</small></div>
                 <div className="body-trend__chart">
-                  {[34, 37, 36, 44, 49, 55, 61, 68].map((value, index) => <i key={index} style={{ height: `${value}%` }} />)}
+                  {Array.from({ length: 8 }, (_, index) => <i key={index} style={{ height: "2%" }} />)}
                 </div>
               </div>
             </section>
@@ -1379,21 +1453,21 @@ export default function Home() {
                 <p className="eyebrow">Temporada 1 · 8 semanas</p>
                 <div className="season-card__title">
                   <div><h3>El despertar</h3><p>Recuperar dominio en estudios, cuerpo y rutina.</p></div>
-                  <span>1/8</span>
+                  <span>0/8</span>
                 </div>
-                <ProgressBar value={12.5} accent="var(--gold)" />
+                <ProgressBar value={0} accent="var(--gold)" />
                 <div className="season-bosses">
-                  <div><span>Jefe académico</span><strong>Examen de Bases</strong><small>Viernes</small></div>
-                  <div><span>Desafío físico</span><strong>4 entrenamientos</strong><small>1 de 4</small></div>
-                  <div><span>Desafío de carácter</span><strong>7 cierres diarios</strong><small>2 de 7</small></div>
+                  <div><span>Jefe académico</span><strong>{nextExam?.title ?? "Por definir"}</strong><small>{nextExam ? formatTaskDate(nextExam.dueDate, nextExam.state) : "Sin examen"}</small></div>
+                  <div><span>Desafío físico</span><strong>Por definir</strong><small>0 completados</small></div>
+                  <div><span>Desafío de carácter</span><strong>7 cierres diarios</strong><small>{journalData.length} registrados</small></div>
                 </div>
               </article>
               <article className="rewards-card panel">
-                <div className="rewards-card__head"><div><p className="eyebrow">Recompensas</p><h3>Botín ganado</h3></div><span>◇ 340</span></div>
+                <div className="rewards-card__head"><div><p className="eyebrow">Recompensas</p><h3>Botín ganado</h3></div><span>◇ {coins}</span></div>
                 <div className="reward-list">
-                  <button onClick={() => notify("Recompensa bloqueada: faltan 60 monedas.")}><span>☕</span><div><strong>Salida o comida especial</strong><small>400 monedas</small></div><i>Bloqueada</i></button>
-                  <button onClick={() => notify("Título equipado: Aprendiz constante.")}><span>✦</span><div><strong>Título: Aprendiz constante</strong><small>Racha de 7 días</small></div><i>Ganado</i></button>
-                  <button onClick={() => notify("Se desbloquea al cerrar la semana.")}><span>◈</span><div><strong>Noche libre sin culpa</strong><small>Cierre semanal ≥ 80%</small></div><i>En progreso</i></button>
+                  <button disabled><span>☕</span><div><strong>Salida o comida especial</strong><small>400 monedas</small></div><i>Bloqueada</i></button>
+                  <button disabled><span>✦</span><div><strong>Título: Aprendiz constante</strong><small>Racha de 7 días</small></div><i>Bloqueado</i></button>
+                  <button disabled><span>◈</span><div><strong>Noche libre sin culpa</strong><small>Cierre semanal ≥ 80%</small></div><i>Bloqueada</i></button>
                 </div>
               </article>
             </section>
@@ -1401,8 +1475,8 @@ export default function Home() {
             <section className="review-recovery">
               <article className="review-card panel">
                 <div><p className="eyebrow">Revisión semanal · domingo</p><h3>Mirar, aprender y ajustar.</h3><p>Compara metas, hábitos, energía y resultados. Después elige una mejora concreta.</p></div>
-                <div className="review-score"><span>76%</span><small>semana actual</small></div>
-                <button onClick={() => notify("La revisión semanal se abrirá con tus datos reales.")}>Iniciar revisión →</button>
+                <div className="review-score"><span>{weeklyRate}%</span><small>semana actual</small></div>
+                <button onClick={() => { setView("journal"); setEntryType("Diario"); }}>Iniciar revisión →</button>
               </article>
               <article className="recovery-card panel">
                 <span className="recovery-card__icon">↺</span>
@@ -1425,32 +1499,47 @@ export default function Home() {
                 </p>
               </div>
               <div className="habit-score">
-                <span>83%</span>
+                <span>{weeklyRate}%</span>
                 <small>cumplimiento semanal</small>
-                <b>↑ 7 puntos</b>
+                <b>{weeklyPossible ? `${completedThisWeek} registros` : "Sin datos"}</b>
               </div>
+            </section>
+
+            <section className="digital-wellbeing panel">
+              <div>
+                <p className="eyebrow">Atención y bienestar digital</p>
+                <h3>Medimos conductas, no una “dopamina” inventada.</h3>
+                <p>Registra el tiempo del celular y separa redes, videos cortos, videojuegos y ocio elegido. Así podremos descubrir qué te roba atención y qué sí te descansa.</p>
+              </div>
+              <div className="digital-metrics">
+                <article><small>Celular hoy</small><strong>{digitalWellbeing.screenTimeMinutes ?? 0} min</strong></article>
+                <article><small>Redes</small><strong>{digitalWellbeing.socialMediaMinutes ?? 0} min</strong></article>
+                <article><small>Videos cortos</small><strong>{digitalWellbeing.shortVideoMinutes ?? 0} min</strong></article>
+                <article><small>Ocio intencional</small><strong>{digitalWellbeing.intentionalLeisureMinutes ?? 0} min</strong></article>
+              </div>
+              <button className="secondary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>Registrar pantallas</button>
             </section>
 
             <section className="habit-summary-grid">
               <article className="habit-kpi panel">
                 <small>Racha más fuerte</small>
-                <strong>8 días</strong>
-                <span>Oración</span>
+                <strong>{strongestHabit?.streak ?? 0} días</strong>
+                <span>{strongestHabit?.title ?? "Sin registros"}</span>
               </article>
               <article className="habit-kpi panel">
                 <small>Esta semana</small>
-                <strong>29 / 35</strong>
+                <strong>{completedThisWeek} / {weeklyPossible}</strong>
                 <span>registros cumplidos</span>
               </article>
               <article className="habit-kpi panel">
                 <small>Mayor oportunidad</small>
-                <strong>Dormir</strong>
-                <span>57% en 30 días</span>
+                <strong>{weakestHabit?.title ?? "Sin datos"}</strong>
+                <span>{weakestHabit?.rate ?? 0}% en 28 días</span>
               </article>
               <article className="habit-kpi panel">
                 <small>Recuperaciones</small>
-                <strong>2</strong>
-                <span>sin romper la temporada</span>
+                <strong>0</strong>
+                <span>aún sin registrar</span>
               </article>
             </section>
 
@@ -1462,22 +1551,24 @@ export default function Home() {
                     <h3>Cumplimiento diario</h3>
                   </div>
                   <div className="period-tabs">
-                    <button onClick={() => notify("Vista semanal activa.")}>7 días</button>
-                    <button className="period-tabs__active">4 semanas</button>
-                    <button onClick={() => notify("Vista de 3 meses disponible con datos reales.")}>3 meses</button>
+                    <button className={habitPeriod === 7 ? "period-tabs__active" : ""} onClick={() => setHabitPeriod(7)}>7 días</button>
+                    <button className={habitPeriod === 28 ? "period-tabs__active" : ""} onClick={() => setHabitPeriod(28)}>4 semanas</button>
+                    <button disabled>3 meses</button>
                   </div>
                 </div>
                 <div className="bar-chart" aria-label="Tendencia de cumplimiento de hábitos">
-                  {[54, 61, 58, 68, 72, 76, 83, 79, 86, 82, 88, 84].map((value, index) => (
+                  {heatmapData.slice(-habitPeriod).map((count, index) => {
+                    const value = habitData.length ? Math.round((count / habitData.length) * 100) : 0;
+                    return (
                     <div className="bar-chart__column" key={`${value}-${index}`}>
                       <span style={{ height: `${value}%` }} />
                       <small>{index % 2 === 0 ? index + 1 : ""}</small>
                     </div>
-                  ))}
+                  );})}
                 </div>
                 <div className="chart-note">
                   <span><i className="legend-dot" /> Cumplimiento</span>
-                  <strong>Promedio: 76%</strong>
+                  <strong>Promedio: {weeklyRate}%</strong>
                 </div>
               </article>
 
@@ -1487,17 +1578,19 @@ export default function Home() {
                     <p className="eyebrow">Mapa de constancia</p>
                     <h3>Últimos 28 días</h3>
                   </div>
-                  <span className="small-badge">Mejorando</span>
+                  <span className="small-badge">Datos reales</span>
                 </div>
                 <div className="habit-heatmap" aria-label="Actividad de los últimos 28 días">
-                  {heatmap.map((intensity, index) => (
+                  {heatmapData.map((count, index) => {
+                    const intensity = Math.min(3, count);
+                    return (
                     <button
                       key={index}
                       className={`heat-cell heat-cell--${intensity}`}
                       aria-label={`Día ${index + 1}: intensidad ${intensity}`}
-                      onClick={() => notify(`Día ${index + 1}: ${intensity + 2} hábitos cumplidos.`)}
+                      onClick={() => notify(`Día ${index + 1}: ${count} hábitos cumplidos.`)}
                     />
-                  ))}
+                  );})}
                 </div>
                 <div className="heatmap-legend">
                   <span>Menos</span>
@@ -1507,8 +1600,7 @@ export default function Home() {
                   <span>Más</span>
                 </div>
                 <p>
-                  Tus mejores días aparecen cuando planificas la noche anterior.
-                  El sueño sigue siendo el punto que más arrastra el promedio.
+                  El análisis aparecerá cuando existan suficientes registros. No se mostrarán conclusiones inventadas.
                 </p>
               </article>
             </section>
@@ -1523,11 +1615,11 @@ export default function Home() {
                 Si se abandonan por decisión, aparece una misión de recuperación.
               </p>
               <div className="non-negotiable-grid">
-                {nonNegotiables.map((item) => (
-                  <article key={item.name}>
-                    <div><span>◆</span><strong>{item.name}</strong><b>{item.rate}%</b></div>
-                    <small>Mínimo: {item.minimum}</small>
-                    <p>{item.purpose}</p>
+                {habitData.filter((habit) => habit.habitType === "non_negotiable").map((item) => (
+                  <article key={item.id}>
+                    <div><span>◆</span><strong>{item.title}</strong><b>{item.rate}%</b></div>
+                    <small>Mínimo diario</small>
+                    <p>{item.streak ? `Racha actual: ${item.streak} días.` : "Todavía sin racha."}</p>
                     <ProgressBar value={item.rate} accent={item.rate < 75 ? "#b98275" : "#d3ac66"} small />
                   </article>
                 ))}
@@ -1556,11 +1648,11 @@ export default function Home() {
               <div className="habit-table__head">
                 <span>Hábito</span><span>Meta</span><span>Últimos 7 días</span><span>Racha</span><span>30 días</span>
               </div>
-              {habitRows.map((habit) => (
-                <article className="habit-row" key={habit.name}>
-                  <strong>{habit.name}</strong>
+              {habitData.map((habit) => (
+                <article className="habit-row" key={habit.id}>
+                  <strong>{habit.title}</strong>
                   <span>{habit.goal}</span>
-                  <div className="week-dots" aria-label={`Últimos 7 días de ${habit.name}`}>
+                  <div className="week-dots" aria-label={`Últimos 7 días de ${habit.title}`}>
                     {habit.week.map((done, index) => (
                       <i className={done ? "week-dot week-dot--done" : "week-dot"} key={index}>
                         {done ? "✓" : ""}
@@ -1580,11 +1672,10 @@ export default function Home() {
               <span>✦</span>
               <div>
                 <p className="eyebrow">Lectura de la semana</p>
-                <h3>No necesitas más hábitos; necesitas proteger las noches.</h3>
+                <h3>{weeklyPossible ? "Tu patrón se construirá con evidencia." : "Todavía no hay una semana que analizar."}</h3>
                 <p>
-                  Cuando duermes tarde, al día siguiente bajan estudio, movimiento
-                  y planificación. La próxima misión de disciplina será cerrar pantallas
-                  a una hora definida, no añadir otra casilla.
+                  Registra sueño, pantallas y hábitos durante varios días. Entonces el sistema
+                  podrá comparar patrones sin confundirte con conclusiones de demostración.
                 </p>
               </div>
             </section>
@@ -1605,16 +1696,10 @@ export default function Home() {
                 <small>Solo tú puedes ver estas notas.</small>
                 <button
                   className="secondary-action"
-                  onClick={() => {
-                    if (note.trim()) {
-                      setNote("");
-                      notify("Entrada guardada en tu diario.");
-                    } else {
-                      notify("Escribe primero una reflexión breve.");
-                    }
-                  }}
+                  disabled={saving}
+                  onClick={saveJournal}
                 >
-                  Guardar reflexión
+                  {saving ? "Guardando…" : "Guardar reflexión"}
                 </button>
               </div>
             </section>
@@ -1622,10 +1707,10 @@ export default function Home() {
               <p className="eyebrow">Ciclos de revisión</p>
               <h3>No solo registrar: interpretar y corregir.</h3>
               <div>
-                <button onClick={() => notify("Revisión semanal preparada para el domingo.")}>
+                <button onClick={() => setNote("Victorias:\n\nDificultades:\n\nLo que aprendí:\n\nUn ajuste para la próxima semana:")}>
                   <span>7 días</span><strong>Revisión semanal</strong><small>Hábitos, metas, energía y una decisión</small>
                 </button>
-                <button onClick={() => notify("La revisión mensual necesita cuatro semanas de datos.")}>
+                <button onClick={() => setNote("Resultado principal del mes:\n\nPatrón que quiero conservar:\n\nPatrón que debo corregir:\n\nEnfoque del siguiente mes:")}>
                   <span>30 días</span><strong>Revisión mensual</strong><small>Tendencias, resultados y nuevo enfoque</small>
                 </button>
               </div>
@@ -1637,16 +1722,22 @@ export default function Home() {
                   <h3>Entradas recientes</h3>
                 </div>
               </div>
-              {journalEntries.map((entry) => (
-                <article className="journal-entry panel" key={entry.date}>
+              {journalData.map((entry) => (
+                <article className="journal-entry panel" key={entry.id}>
                   <div>
-                    <span className="tag">{entry.tag}</span>
+                    <span className="tag">Diario</span>
                     <small>{entry.date}</small>
                   </div>
-                  <h3>{entry.title}</h3>
+                  <h3>{entry.mood ? `Estado ${entry.mood}/5` : "Reflexión del día"}</h3>
                   <p>{entry.body}</p>
                 </article>
               ))}
+              {journalData.length === 0 && (
+                <article className="empty-state panel">
+                  <strong>Tu bitácora empieza vacía</strong>
+                  <p>La primera reflexión que guardes aparecerá aquí.</p>
+                </article>
+              )}
             </section>
           </div>
         )}
@@ -1672,7 +1763,7 @@ export default function Home() {
           onClose={() => setModal(null)}
         >
           <div className="segmented segmented--five">
-            {["Sesión de estudio", "Tarea", "Examen", "Hábito", "Meta", "Medición", "Diario"].map((type) => (
+            {["Sesión de estudio", "Tarea", "Examen", "Hábito", "Meta", "Medición", "Pantallas", "Diario"].map((type) => (
               <button
                 key={type}
                 className={entryType === type ? "segmented__active" : ""}
@@ -1682,20 +1773,24 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <label className="field">
-            <span>¿Qué quieres registrar?</span>
-            <textarea
-              autoFocus
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={
-                entryType === "Tarea" || entryType === "Examen"
-                  ? "Ej.: Resolver taller de normalización"
-                  : "Ej.: Practiqué guitarra 35 minutos y completé una canción."
-              }
-            />
-          </label>
-          {(entryType === "Tarea" || entryType === "Examen") && (
+          {entryType !== "Medición" && entryType !== "Pantallas" && (
+            <label className="field">
+              <span>{entryType === "Diario" ? "Tu reflexión" : "¿Qué quieres registrar?"}</span>
+              <textarea
+                autoFocus
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder={
+                  entryType === "Tarea" || entryType === "Examen"
+                    ? "Ej.: Resolver taller de normalización"
+                    : entryType === "Meta"
+                      ? "Ej.: Llegar al 12% de grasa corporal"
+                      : "Describe brevemente la evidencia real."
+                }
+              />
+            </label>
+          )}
+          {(entryType === "Tarea" || entryType === "Examen" || entryType === "Sesión de estudio") && (
             <div className="field-row">
               <label className="field">
                 <span>Materia o área</span>
@@ -1706,22 +1801,86 @@ export default function Home() {
                   placeholder="Ej.: Estadística"
                 />
               </label>
-              <label className="field field--date">
-                <span>Fecha</span>
-                <input
-                  type="date"
-                  value={taskDate}
-                  onChange={(event) => setTaskDate(event.target.value)}
-                />
+              {entryType === "Sesión de estudio" ? (
+                <label className="field">
+                  <span>Duración (min)</span>
+                  <input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} />
+                </label>
+              ) : (
+                <label className="field field--date">
+                  <span>Fecha</span>
+                  <input type="date" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} />
+                </label>
+              )}
+            </div>
+          )}
+          {entryType === "Sesión de estudio" && (
+            <div className="field-row">
+              <label className="field">
+                <span>Habilidad</span>
+                <select value={selectedSkill.name} onChange={(event) => {
+                  const skill = realAttributeGroups.flatMap((group) => group.skills).find((candidate) => candidate.name === event.target.value);
+                  if (skill) setSelectedSkillName(skill.name);
+                }}>
+                  {realAttributeGroups.flatMap((group) => group.skills).map((skill) => <option key={skill.name}>{skill.name}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span>Tipo de práctica</span>
+                <select value={studyMode} onChange={(event) => setStudyMode(event.target.value as typeof studyMode)}>
+                  <option value="reading">Lectura</option><option value="guided">Con ayuda</option><option value="practice">Práctica</option><option value="independent">Independiente</option><option value="simulation">Simulacro</option>
+                </select>
               </label>
             </div>
+          )}
+          {entryType === "Hábito" && (
+            <div className="field-row">
+              <label className="field"><span>Meta diaria</span><input type="number" min="1" value={targetValue} onChange={(event) => setTargetValue(event.target.value)} placeholder="1" /></label>
+              <label className="field"><span>Unidad</span><input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="vez, min, páginas…" /></label>
+            </div>
+          )}
+          {entryType === "Meta" && (
+            <>
+              <div className="field-row">
+                <label className="field"><span>Valor actual</span><input type="number" step="any" value={numberValue} onChange={(event) => setNumberValue(event.target.value)} /></label>
+                <label className="field"><span>Resultado objetivo</span><input type="number" step="any" value={targetValue} onChange={(event) => setTargetValue(event.target.value)} /></label>
+              </div>
+              <div className="field-row">
+                <label className="field"><span>Unidad</span><input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="%, kg, USD, materias…" /></label>
+                <label className="field"><span>Fecha objetivo</span><input type="date" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} /></label>
+              </div>
+            </>
+          )}
+          {entryType === "Medición" && (
+            <div className="metric-form-grid">
+              <label className="field"><span>Peso (kg)</span><input type="number" step=".1" value={bodyForm.weight} onChange={(event) => setBodyForm((current) => ({ ...current, weight: event.target.value }))} /></label>
+              <label className="field"><span>Cintura (cm)</span><input type="number" step=".1" value={bodyForm.waist} onChange={(event) => setBodyForm((current) => ({ ...current, waist: event.target.value }))} /></label>
+              <label className="field"><span>Grasa estimada (%)</span><input type="number" step=".1" value={bodyForm.fat} onChange={(event) => setBodyForm((current) => ({ ...current, fat: event.target.value }))} /></label>
+              <label className="field"><span>Energía (1–5)</span><input type="number" min="1" max="5" value={bodyForm.energy} onChange={(event) => setBodyForm((current) => ({ ...current, energy: event.target.value }))} /></label>
+              <label className="field"><span>Sueño (horas)</span><input type="number" step=".1" min="0" value={bodyForm.sleep} onChange={(event) => setBodyForm((current) => ({ ...current, sleep: event.target.value }))} /></label>
+            </div>
+          )}
+          {entryType === "Pantallas" && (
+            <>
+              <p className="form-help">Copia los minutos desde Bienestar digital. “Estímulos rápidos” se observa mediante redes y videos cortos; no intentamos medir dopamina biológica.</p>
+              <div className="metric-form-grid">
+                <label className="field"><span>Celular total</span><input type="number" min="0" value={digitalForm.screen} onChange={(event) => setDigitalForm((current) => ({ ...current, screen: event.target.value }))} /></label>
+                <label className="field"><span>Redes sociales</span><input type="number" min="0" value={digitalForm.social} onChange={(event) => setDigitalForm((current) => ({ ...current, social: event.target.value }))} /></label>
+                <label className="field"><span>Videos cortos</span><input type="number" min="0" value={digitalForm.shortVideo} onChange={(event) => setDigitalForm((current) => ({ ...current, shortVideo: event.target.value }))} /></label>
+                <label className="field"><span>Videojuegos</span><input type="number" min="0" value={digitalForm.gaming} onChange={(event) => setDigitalForm((current) => ({ ...current, gaming: event.target.value }))} /></label>
+                <label className="field"><span>Ocio intencional</span><input type="number" min="0" value={digitalForm.leisure} onChange={(event) => setDigitalForm((current) => ({ ...current, leisure: event.target.value }))} /></label>
+              </div>
+            </>
+          )}
+          {entryType === "Diario" && (
+            <label className="field"><span>Estado (1–5)</span><input type="number" min="1" max="5" value={mood} onChange={(event) => setMood(event.target.value)} /></label>
           )}
           <div className="modal__actions">
             <button className="ghost-action" onClick={() => setModal(null)}>
               Cancelar
             </button>
-            <button className="primary-action modal-primary" onClick={saveQuickEntry}>
-              Guardar registro
+            <button className="primary-action modal-primary" disabled={saving} onClick={saveQuickEntry}>
+              {saving ? "Guardando…" : "Guardar registro"}
             </button>
           </div>
         </Modal>
@@ -1742,15 +1901,8 @@ export default function Home() {
             ].map((result, index) => (
               <button
                 key={result}
-                onClick={() => {
-                  setMissionStatus("done");
-                  setModal(null);
-                  notify(
-                    index >= 2
-                      ? "Misión cumplida: +120 XP y evidencia de dominio."
-                      : "Avance guardado. Mañana practicarás sin ayuda.",
-                  );
-                }}
+                disabled={saving}
+                onClick={() => finishMission(result, index)}
               >
                 <span>{index + 1}</span>
                 {result}
@@ -1769,7 +1921,7 @@ export default function Home() {
           <div className="day-summary">
             <div><span>Misión principal</span><strong>{missionStatus === "done" ? "Cumplida" : missionStatus === "active" ? "En curso" : "Pendiente"}</strong></div>
             <div><span>Hábitos registrados</span><strong>{completedHabits} de 5</strong></div>
-            <div><span>XP provisional</span><strong>+{missionStatus === "done" ? 170 : 50} XP</strong></div>
+            <div><span>XP total comprobado</span><strong>{totalXp} XP</strong></div>
           </div>
           <label className="field">
             <span>¿Qué te bloqueó o qué aprendiste?</span>
@@ -1781,13 +1933,10 @@ export default function Home() {
           </label>
           <button
             className="primary-action modal-primary full-button"
-            onClick={() => {
-              setModal(null);
-              setNote("");
-              notify("Día cerrado. Mañana comenzamos con claridad.");
-            }}
+            disabled={saving}
+            onClick={closeDay}
           >
-            Confirmar cierre
+            {saving ? "Guardando…" : "Confirmar cierre"}
           </button>
         </Modal>
       )}
@@ -1810,9 +1959,10 @@ export default function Home() {
           </label>
           <button
             className="primary-action modal-primary full-button"
-            onClick={() => { setModal(null); setNote(""); notify("Modo de día difícil activado. Protege los cuatro mínimos."); }}
+            disabled={saving}
+            onClick={activateRecovery}
           >
-            Activar plan mínimo
+            {saving ? "Activando…" : "Activar plan mínimo"}
           </button>
         </Modal>
       )}
