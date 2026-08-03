@@ -192,7 +192,10 @@ textarea:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(216, 183, 109, .15);
   border-radius: 15px;
-  background: rgba(255, 255, 255, .018);
+  background:
+    linear-gradient(90deg, rgba(7, 13, 23, .97), rgba(7, 13, 23, .62)),
+    url("/art/awakening-map.webp") 72% center / cover no-repeat;
+  box-shadow: inset 0 0 34px rgba(0, 0, 0, .42);
 }
 
 .sidebar__season p,
@@ -1386,6 +1389,33 @@ textarea:focus-visible {
     url("/art/data-apprentice.webp") right 28% / cover no-repeat;
 }
 
+.brand .brand-version {
+  width: max-content;
+  margin-top: 7px;
+  border: 1px solid rgba(226, 194, 125, .28);
+  border-radius: 999px;
+  background: rgba(205, 168, 102, .09);
+  color: var(--gold-bright);
+  font-size: 8px;
+  letter-spacing: .12em;
+  padding: 3px 7px;
+}
+
+.build-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid rgba(226, 194, 125, .42);
+  border-radius: 999px;
+  background: rgba(205, 168, 102, .12);
+  color: var(--gold-bright);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .1em;
+  padding: 0 11px;
+  text-transform: uppercase;
+}
+
 .skill-overview > * {
   position: relative;
   z-index: 1;
@@ -2313,9 +2343,11 @@ button.heat-cell:hover {
 }
 
 .journal-prompt {
-  position: sticky;
-  top: 20px;
-  background: var(--panel);
+  position: relative;
+  top: auto;
+  background:
+    linear-gradient(90deg, rgba(13, 23, 38, .99) 0%, rgba(13, 23, 38, .94) 62%, rgba(13, 23, 38, .68) 100%),
+    url("/art/data-apprentice.webp") right 24% / cover no-repeat;
   z-index: 2;
 }
 
@@ -2642,6 +2674,7 @@ button.heat-cell:hover {
   .topbar h1 { font-size: 29px; }
   .player-status { gap: 8px; }
   .season-pill,
+  .data-status,
   .xp-summary span,
   .xp-summary strong { display: none; }
   .level-badge { width: 39px; height: 45px; font-size: 18px; }

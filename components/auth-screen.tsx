@@ -63,7 +63,7 @@ export function AuthScreen({ loading = false }: { loading?: boolean }) {
         <div className="auth-mark" aria-hidden="true">
           ◆
         </div>
-        <p className="eyebrow">Andre · Temporada Uno</p>
+        <p className="eyebrow">Andre · Temporada Uno · V2 RPG</p>
         <h1>Tu progreso ahora sí será tuyo</h1>
         <p>
           Entra para guardar en Supabase tus materias, tareas, exámenes y

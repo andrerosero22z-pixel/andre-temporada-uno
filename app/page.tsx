@@ -815,6 +815,7 @@ export default function Home() {
           <div>
             <span>Proyecto personal</span>
             <strong>Temporada Uno</strong>
+            <small className="brand-version">V2 · RPG</small>
           </div>
         </div>
 
@@ -867,6 +868,7 @@ export default function Home() {
             </h1>
           </div>
           <div className="player-status">
+            <span className="build-badge">Versión 2 · RPG</span>
             <span className={`data-status data-status--${dataStatus}`}>
               {dataStatus === "ready"
                 ? "Supabase · núcleo real"
