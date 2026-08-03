@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   BodyMeasurement,
   DashboardData,
+  DigitalDay,
   DigitalWellbeing,
   GoalRecord,
   HabitIds,
@@ -223,6 +224,25 @@ function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
   }
 
   const dates = recentDates(28);
+  const logsByHabitAndDate = new Map(
+    logs.map((log) => [`${log.habit_id}:${log.log_date}`, Number(log.amount)]),
+  );
+  const digitalHistory: DigitalDay[] = dates.map((date) => {
+    const day: DigitalDay = {
+      date,
+      screenTimeMinutes: null,
+      socialMediaMinutes: null,
+      shortVideoMinutes: null,
+      gamingMinutes: null,
+      intentionalLeisureMinutes: null,
+    };
+
+    for (const [key, habitId] of Object.entries(digitalHabitIds)) {
+      const amount = logsByHabitAndDate.get(`${habitId}:${date}`);
+      day[key as keyof DigitalWellbeing] = amount ?? null;
+    }
+    return day;
+  });
   const visibleHabits = habits.filter(
     (habit) => !Object.values(digitalDefinitions).some((metric) => metric.title === habit.title),
   );
@@ -249,7 +269,7 @@ function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
       logs.some((log) => log.habit_id === habit.id && log.log_date === date && log.completed),
     ).length,
   );
-  return { ids, checkins, digitalHabitIds, digitalWellbeing, habitRows, heatmap };
+  return { ids, checkins, digitalHabitIds, digitalWellbeing, digitalHistory, habitRows, heatmap };
 }
 
 export async function loadDashboardData(

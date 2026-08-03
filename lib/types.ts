@@ -4,6 +4,7 @@ export type View =
   | "progress"
   | "goals"
   | "habits"
+  | "dopamine"
   | "journal";
 
 export type MissionStatus = "pending" | "active" | "done";
@@ -91,6 +92,10 @@ export type DigitalWellbeing = {
   intentionalLeisureMinutes: number | null;
 };
 
+export type DigitalDay = DigitalWellbeing & {
+  date: string;
+};
+
 export type StoredSkill = {
   id: string;
   name: string;
@@ -119,6 +124,7 @@ export type DashboardData = {
   habitRows: HabitOverview[];
   heatmap: number[];
   digitalWellbeing: DigitalWellbeing;
+  digitalHistory: DigitalDay[];
   digitalHabitIds: Record<string, string>;
   skills: StoredSkill[];
   totalXp: number;

@@ -29,3 +29,17 @@ test("persists the first real tracking modules instead of demo-only actions", as
   assert.match(dashboard, /Videos cortos/);
   assert.match(dashboard, /createGoal/);
 });
+
+test("gives dopamine and attention a real view with seven-day history", async () => {
+  const [page, dashboard, types] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/supabase/dashboard.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/types.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /id: "dopamine"/);
+  assert.match(page, /Dopamina y atención/);
+  assert.match(page, /Mapa de consumo digital/);
+  assert.match(dashboard, /digitalHistory/);
+  assert.match(types, /DigitalDay/);
+});

@@ -3646,3 +3646,563 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Alineación general y página de Dopamina */
+.workspace,
+.topbar,
+.dashboard,
+.content-view {
+  width: 100%;
+  min-width: 0;
+}
+
+.sidebar {
+  overflow-y: auto;
+}
+
+.main-nav {
+  gap: 5px;
+}
+
+.nav-item {
+  min-height: 48px;
+}
+
+.topbar > div:first-child,
+.player-status,
+.goals-hero > div,
+.goal-card,
+.dopamine-hero__copy {
+  min-width: 0;
+}
+
+.player-status {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.goals-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.goals-hero .secondary-action {
+  white-space: nowrap;
+}
+
+.goal-grid {
+  align-items: stretch;
+}
+
+.goal-grid--empty {
+  grid-template-columns: 1fr;
+}
+
+.goal-grid--empty .empty-state {
+  width: 100%;
+  min-height: 210px;
+  padding: 30px 36px;
+}
+
+.goal-card {
+  grid-template-rows: auto auto auto auto 1fr auto;
+}
+
+.dopamine-view {
+  gap: 16px;
+}
+
+.dopamine-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  min-height: 320px;
+  align-items: center;
+  gap: 36px;
+  overflow: hidden;
+  padding: 38px;
+  background:
+    radial-gradient(circle at 84% 46%, rgba(131, 168, 216, .2), transparent 23%),
+    radial-gradient(circle at 72% 16%, rgba(205, 168, 102, .09), transparent 20%),
+    linear-gradient(145deg, rgba(18, 29, 47, .98), rgba(7, 13, 24, .98));
+}
+
+.dopamine-hero::after {
+  position: absolute;
+  right: -90px;
+  bottom: -130px;
+  width: 390px;
+  height: 390px;
+  border: 1px solid rgba(131, 168, 216, .08);
+  border-radius: 50%;
+  content: "";
+}
+
+.dopamine-hero h2 {
+  max-width: 900px;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(34px, 3.4vw, 50px);
+  font-weight: 500;
+  letter-spacing: -.025em;
+  line-height: 1.05;
+}
+
+.dopamine-hero p:not(.eyebrow) {
+  max-width: 780px;
+  margin: 14px 0 24px;
+  color: #aab4c2;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.dopamine-hero .primary-action {
+  min-height: 48px;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+
+.attention-orbit {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 190px;
+  height: 190px;
+  place-content: center;
+  justify-self: center;
+  border: 1px solid rgba(205, 168, 102, .3);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(24, 42, 69, .94), rgba(8, 15, 27, .86) 64%, transparent 65%);
+  box-shadow: 0 0 70px rgba(86, 119, 175, .15), inset 0 0 30px rgba(205, 168, 102, .07);
+  text-align: center;
+}
+
+.attention-orbit__ring {
+  position: absolute;
+  inset: 17px;
+  border: 1px dashed rgba(131, 168, 216, .3);
+  border-radius: 50%;
+  animation: orbit-spin 24s linear infinite;
+}
+
+.attention-orbit__ring::after {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 14px rgba(205, 168, 102, .6);
+  content: "";
+}
+
+.attention-orbit__ring--two {
+  inset: 32px;
+  animation-direction: reverse;
+  animation-duration: 17s;
+}
+
+.attention-orbit strong {
+  color: var(--cream);
+  font-family: var(--serif);
+  font-size: 48px;
+  font-weight: 500;
+  line-height: .9;
+}
+
+.attention-orbit small {
+  margin-top: 8px;
+  color: var(--gold);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.dopamine-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dopamine-metric {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: start;
+  gap: 11px;
+  min-height: 132px;
+  padding: 19px;
+}
+
+.dopamine-metric > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(131, 168, 216, .28);
+  border-radius: 50%;
+  color: var(--gold-bright);
+}
+
+.dopamine-metric div {
+  display: grid;
+  gap: 3px;
+}
+
+.dopamine-metric small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.dopamine-metric strong {
+  color: var(--blue);
+  font-family: var(--serif);
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.dopamine-metric p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.attention-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, .8fr);
+  gap: 16px;
+}
+
+.attention-chart,
+.attention-balance,
+.digital-averages,
+.attention-protocol {
+  padding: 25px;
+}
+
+.attention-chart .section-heading,
+.digital-averages > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.attention-chart h3,
+.attention-balance h3,
+.digital-averages h3,
+.attention-protocol h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 500;
+}
+
+.attention-chart .section-heading > span {
+  border: 1px solid var(--line-green);
+  border-radius: 999px;
+  color: var(--blue);
+  font-size: 9px;
+  padding: 7px 10px;
+}
+
+.digital-chart {
+  display: grid;
+  height: 205px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  margin-top: 26px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  background: repeating-linear-gradient(to top, transparent 0 49px, rgba(255,255,255,.04) 49px 50px);
+  padding: 0 10px;
+}
+
+.digital-chart__day {
+  display: grid;
+  height: 100%;
+  grid-template-rows: 1fr 24px;
+  align-items: end;
+  gap: 6px;
+}
+
+.digital-chart__bars {
+  display: flex;
+  height: 100%;
+  align-items: end;
+  justify-content: center;
+  gap: 4px;
+}
+
+.digital-chart__bars i,
+.digital-chart__bars b {
+  width: min(15px, 40%);
+  min-height: 0;
+  border-radius: 5px 5px 1px 1px;
+  background: linear-gradient(180deg, #8fb1de, #46678f);
+  box-shadow: 0 0 12px rgba(131, 168, 216, .13);
+}
+
+.digital-chart__bars b {
+  background: linear-gradient(180deg, #e0bd75, #8c6c37);
+}
+
+.digital-chart__day small {
+  color: var(--muted);
+  font-size: 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.digital-chart__legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.digital-chart__legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.digital-chart__legend i,
+.digital-chart__legend b {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--blue);
+}
+
+.digital-chart__legend b { background: var(--gold); }
+
+.attention-balance__rows {
+  display: grid;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.attention-balance__rows > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  border: 1px solid rgba(131, 168, 216, .12);
+  border-radius: 11px;
+  background: rgba(8, 15, 26, .36);
+  padding: 13px 14px;
+}
+
+.attention-balance__rows span { color: #c4cad3; font-size: 10px; }
+.attention-balance__rows strong { color: var(--blue); font-family: var(--serif); font-size: 18px; font-weight: 500; }
+.attention-balance__rows small { grid-column: 1 / -1; color: var(--muted); font-size: 8px; }
+.attention-balance__rows .attention-balance__positive { border-color: rgba(114, 168, 145, .2); }
+.attention-balance__rows .attention-balance__positive strong { color: var(--emerald); }
+
+.dopamine-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr) minmax(280px, .9fr);
+  gap: 16px;
+}
+
+.attention-insight {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 17px;
+  padding: 25px;
+  background:
+    radial-gradient(circle at 10% 50%, rgba(205,168,102,.12), transparent 22%),
+    linear-gradient(145deg, rgba(20,31,47,.94), rgba(10,17,29,.96));
+}
+
+.attention-insight > span {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid var(--gold);
+  border-radius: 50%;
+  color: var(--gold);
+  font-size: 20px;
+}
+
+.attention-insight h3 {
+  margin: 0;
+  color: #c9cdd4;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+.digital-averages dl {
+  display: grid;
+  gap: 9px;
+  margin: 18px 0 0;
+}
+
+.digital-averages dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding-bottom: 9px;
+}
+
+.digital-averages dt { color: var(--muted); font-size: 9px; }
+.digital-averages dd { margin: 0; color: var(--blue); font-size: 10px; font-weight: 700; }
+
+.attention-protocol ol {
+  display: grid;
+  gap: 9px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attention-protocol li {
+  display: grid;
+  grid-template-columns: 27px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.attention-protocol li > span {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--gold);
+  font-size: 9px;
+}
+
+.attention-protocol li div { display: grid; gap: 2px; }
+.attention-protocol li strong { font-size: 9px; }
+.attention-protocol li small { color: var(--muted); font-size: 8px; }
+
+@keyframes orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1320px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .player-status {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .dopamine-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dopamine-metric:nth-child(4),
+  .dopamine-metric:nth-child(5) {
+    min-height: 118px;
+  }
+
+  .dopamine-lower-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .attention-insight {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1050px) {
+  .dopamine-hero {
+    grid-template-columns: minmax(0, 1fr) 180px;
+    padding: 30px;
+  }
+
+  .attention-orbit {
+    width: 160px;
+    height: 160px;
+  }
+
+  .attention-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  body { padding-bottom: 92px; }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .player-status {
+    width: auto;
+  }
+
+  .build-badge,
+  .sign-out {
+    display: none;
+  }
+
+  .goals-hero,
+  .dopamine-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .dopamine-hero {
+    padding: 23px;
+  }
+
+  .dopamine-hero h2 {
+    font-size: 34px;
+  }
+
+  .attention-orbit {
+    display: none;
+  }
+
+  .dopamine-metric-grid,
+  .dopamine-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dopamine-metric {
+    min-height: 0;
+  }
+
+  .attention-insight {
+    grid-column: auto;
+  }
+
+  .digital-chart {
+    height: 170px;
+    gap: 5px;
+    padding-inline: 2px;
+  }
+
+  .mobile-nav {
+    grid-template-columns: repeat(7, minmax(54px, 1fr));
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .dopamine-hero h2 { font-size: 30px; }
+  .attention-chart,
+  .attention-balance,
+  .digital-averages,
+  .attention-protocol,
+  .attention-insight { padding: 20px; }
+  .goal-grid--empty .empty-state { padding: 22px; }
+}

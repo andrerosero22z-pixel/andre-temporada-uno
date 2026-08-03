@@ -19,6 +19,7 @@ import type {
   AttributeGroup,
   BodyMeasurement,
   DashboardData,
+  DigitalDay,
   DigitalWellbeing,
   GoalRecord,
   HabitIds,
@@ -41,6 +42,7 @@ const navItems: { id: View; label: string; icon: string }[] = [
   { id: "progress", label: "Progreso", icon: "⌁" },
   { id: "goals", label: "Metas", icon: "◎" },
   { id: "habits", label: "Hábitos", icon: "◌" },
+  { id: "dopamine", label: "Dopamina", icon: "◐" },
   { id: "journal", label: "Diario", icon: "✎" },
 ];
 
@@ -404,6 +406,7 @@ export default function Home() {
     gamingMinutes: null,
     intentionalLeisureMinutes: null,
   });
+  const [digitalHistory, setDigitalHistory] = useState<DigitalDay[]>([]);
   const [digitalHabitIds, setDigitalHabitIds] = useState<Record<string, string>>({});
   const [storedSkills, setStoredSkills] = useState<StoredSkill[]>([]);
   const [totalXp, setTotalXp] = useState(0);
@@ -467,6 +470,24 @@ export default function Home() {
     : 0;
   const strongestHabit = [...habitData].sort((left, right) => right.streak - left.streak)[0];
   const weakestHabit = [...habitData].sort((left, right) => left.rate - right.rate)[0];
+  const recentDigitalDays = digitalHistory.slice(-7);
+  const recordedDigitalDays = recentDigitalDays.filter((day) => day.screenTimeMinutes !== null);
+  const averageDigital = (key: keyof DigitalWellbeing) => {
+    const values = recordedDigitalDays
+      .map((day) => day[key])
+      .filter((value): value is number => value !== null);
+    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+  };
+  const rapidStimuliToday = (digitalWellbeing.socialMediaMinutes ?? 0) + (digitalWellbeing.shortVideoMinutes ?? 0);
+  const classifiedScreenToday = rapidStimuliToday + (digitalWellbeing.gamingMinutes ?? 0);
+  const unclassifiedScreenToday = Math.max(0, (digitalWellbeing.screenTimeMinutes ?? 0) - classifiedScreenToday);
+  const digitalInsight = digitalWellbeing.screenTimeMinutes === null
+    ? "Registra al menos tres días para descubrir cuándo el celular te ayuda y cuándo empieza a dirigir tu atención."
+    : rapidStimuliToday >= 90
+      ? "Hoy los estímulos rápidos ocuparon una parte importante del día. Conviene proteger el siguiente bloque sin redes ni videos cortos."
+      : rapidStimuliToday > 0
+        ? "Ya tienes una línea base de estímulos rápidos. La meta no es cero pantalla: es que el uso sea elegido y no automático."
+        : "Hoy no registraste redes ni videos cortos. Comprueba que el dato esté completo antes de sacar conclusiones.";
   const realLifeStats = [
     { name: "Disciplina", value: weeklyRate, detail: "Cumplimiento de hábitos y no negociables", change: weeklyPossible ? `${completedThisWeek} de ${weeklyPossible} esta semana` : "Sin registros", color: "#d3ac66" },
     { name: "Salud física", value: Math.round(((habitData.find((habit) => habit.title === "Movimiento")?.rate ?? 0) + (habitData.find((habit) => habit.title === "Dormir a tiempo")?.rate ?? 0)) / 2), detail: "Movimiento y descanso registrados", change: bodyMeasurement ? "Línea base registrada" : "Sin línea base", color: "#b98275" },
@@ -506,6 +527,7 @@ export default function Home() {
     setHabitData(data.habitRows);
     setHeatmapData(data.heatmap);
     setDigitalWellbeing(data.digitalWellbeing);
+    setDigitalHistory(data.digitalHistory);
     setDigitalHabitIds(data.digitalHabitIds);
     setStoredSkills(data.skills);
     setTotalXp(data.totalXp);
@@ -864,6 +886,7 @@ export default function Home() {
               {view === "progress" && "Mapa de progreso"}
               {view === "goals" && "Metas y evolución"}
               {view === "habits" && "Seguimiento de hábitos"}
+              {view === "dopamine" && "Dopamina y atención"}
               {view === "journal" && "Diario de campaña"}
             </h1>
           </div>
@@ -1391,7 +1414,7 @@ export default function Home() {
               </button>
             </section>
 
-            <section className="goal-grid">
+            <section className={goalData.length === 0 ? "goal-grid goal-grid--empty" : "goal-grid"}>
               {goalData.map((goal) => (
                 <article className="goal-card panel" key={goal.title}>
                   <div className="goal-card__top">
@@ -1504,21 +1527,6 @@ export default function Home() {
                 <small>cumplimiento semanal</small>
                 <b>{weeklyPossible ? `${completedThisWeek} registros` : "Sin datos"}</b>
               </div>
-            </section>
-
-            <section className="digital-wellbeing panel">
-              <div>
-                <p className="eyebrow">Atención y bienestar digital</p>
-                <h3>Medimos conductas, no una “dopamina” inventada.</h3>
-                <p>Registra el tiempo del celular y separa redes, videos cortos, videojuegos y ocio elegido. Así podremos descubrir qué te roba atención y qué sí te descansa.</p>
-              </div>
-              <div className="digital-metrics">
-                <article><small>Celular hoy</small><strong>{digitalWellbeing.screenTimeMinutes ?? 0} min</strong></article>
-                <article><small>Redes</small><strong>{digitalWellbeing.socialMediaMinutes ?? 0} min</strong></article>
-                <article><small>Videos cortos</small><strong>{digitalWellbeing.shortVideoMinutes ?? 0} min</strong></article>
-                <article><small>Ocio intencional</small><strong>{digitalWellbeing.intentionalLeisureMinutes ?? 0} min</strong></article>
-              </div>
-              <button className="secondary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>Registrar pantallas</button>
             </section>
 
             <section className="habit-summary-grid">
@@ -1679,6 +1687,107 @@ export default function Home() {
                   podrá comparar patrones sin confundirte con conclusiones de demostración.
                 </p>
               </div>
+            </section>
+          </div>
+        )}
+
+        {view === "dopamine" && (
+          <div className="content-view dopamine-view">
+            <section className="dopamine-hero panel">
+              <div className="dopamine-hero__copy">
+                <p className="eyebrow">Atención · estímulos · descanso</p>
+                <h2>No buscamos “cero dopamina”. Buscamos recuperar el control de tu atención.</h2>
+                <p>
+                  Aquí registras conductas observables: celular, redes, videos cortos,
+                  videojuegos y ocio intencional. La página te ayuda a separar uso elegido
+                  de consumo automático sin inventar una medición biológica.
+                </p>
+                <button className="primary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>
+                  Registrar el día
+                </button>
+              </div>
+              <div className="attention-orbit" aria-hidden="true">
+                <span className="attention-orbit__ring" />
+                <span className="attention-orbit__ring attention-orbit__ring--two" />
+                <strong>{rapidStimuliToday}</strong>
+                <small>min rápidos</small>
+              </div>
+            </section>
+
+            <section className="dopamine-metric-grid">
+              {[
+                ["Celular total", digitalWellbeing.screenTimeMinutes, "Todo el uso registrado hoy", "◫"],
+                ["Redes sociales", digitalWellbeing.socialMediaMinutes, "Feeds y mensajería social", "◎"],
+                ["Videos cortos", digitalWellbeing.shortVideoMinutes, "Reels, Shorts y TikTok", "▶"],
+                ["Videojuegos", digitalWellbeing.gamingMinutes, "Juego elegido o automático", "◇"],
+                ["Ocio intencional", digitalWellbeing.intentionalLeisureMinutes, "Descanso que decidiste", "☾"],
+              ].map(([label, value, detail, icon]) => (
+                <article className="dopamine-metric panel" key={String(label)}>
+                  <span>{icon}</span>
+                  <div><small>{label}</small><strong>{value ?? 0} min</strong><p>{detail}</p></div>
+                </article>
+              ))}
+            </section>
+
+            <section className="attention-grid">
+              <article className="attention-chart panel">
+                <div className="section-heading">
+                  <div><p className="eyebrow">Últimos 7 días</p><h3>Mapa de consumo digital</h3></div>
+                  <span>{recordedDigitalDays.length}/7 registrados</span>
+                </div>
+                <div className="digital-chart" role="img" aria-label="Comparación de tiempo de celular y estímulos rápidos en los últimos siete días">
+                  {recentDigitalDays.map((day) => {
+                    const total = day.screenTimeMinutes ?? 0;
+                    const rapid = (day.socialMediaMinutes ?? 0) + (day.shortVideoMinutes ?? 0);
+                    const maxMinutes = Math.max(360, ...recentDigitalDays.map((item) => item.screenTimeMinutes ?? 0));
+                    return (
+                      <div className="digital-chart__day" key={day.date}>
+                        <div className="digital-chart__bars">
+                          <i style={{ height: `${Math.max(total ? 4 : 0, (total / maxMinutes) * 100)}%` }} />
+                          <b style={{ height: `${Math.max(rapid ? 4 : 0, (rapid / maxMinutes) * 100)}%` }} />
+                        </div>
+                        <small>{new Intl.DateTimeFormat("es-EC", { weekday: "short" }).format(new Date(`${day.date}T12:00:00`)).replace(".", "")}</small>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="digital-chart__legend"><span><i /> Celular total</span><span><b /> Redes + videos cortos</span></div>
+              </article>
+
+              <article className="attention-balance panel">
+                <p className="eyebrow">Lectura de hoy</p>
+                <h3>¿A dónde fue tu atención?</h3>
+                <div className="attention-balance__rows">
+                  <div><span>Estímulos rápidos</span><strong>{rapidStimuliToday} min</strong><small>Redes + videos cortos</small></div>
+                  <div><span>Gaming</span><strong>{digitalWellbeing.gamingMinutes ?? 0} min</strong><small>Entretenimiento interactivo</small></div>
+                  <div><span>Uso sin clasificar</span><strong>{unclassifiedScreenToday} min</strong><small>Estudio, mensajes, utilidades u otros</small></div>
+                  <div className="attention-balance__positive"><span>Ocio intencional</span><strong>{digitalWellbeing.intentionalLeisureMinutes ?? 0} min</strong><small>Descanso elegido conscientemente</small></div>
+                </div>
+              </article>
+            </section>
+
+            <section className="dopamine-lower-grid">
+              <article className="attention-insight panel">
+                <span>✦</span>
+                <div><p className="eyebrow">Lectura estratégica</p><h3>{digitalInsight}</h3></div>
+              </article>
+              <article className="digital-averages panel">
+                <div><p className="eyebrow">Promedio registrado</p><h3>Tu semana, sin juicio</h3></div>
+                <dl>
+                  <div><dt>Celular</dt><dd>{averageDigital("screenTimeMinutes")} min/día</dd></div>
+                  <div><dt>Estímulos rápidos</dt><dd>{averageDigital("socialMediaMinutes") + averageDigital("shortVideoMinutes")} min/día</dd></div>
+                  <div><dt>Ocio elegido</dt><dd>{averageDigital("intentionalLeisureMinutes")} min/día</dd></div>
+                </dl>
+              </article>
+              <article className="attention-protocol panel">
+                <p className="eyebrow">Protocolo de control</p>
+                <h3>Antes de abrir por impulso</h3>
+                <ol>
+                  <li><span>1</span><div><strong>Nombra la intención</strong><small>¿Qué vas a hacer exactamente?</small></div></li>
+                  <li><span>2</span><div><strong>Elige un límite</strong><small>Tiempo o resultado de salida.</small></div></li>
+                  <li><span>3</span><div><strong>Cierra conscientemente</strong><small>No esperes a que el feed decida.</small></div></li>
+                </ol>
+              </article>
             </section>
           </div>
         )}
