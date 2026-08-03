@@ -43,3 +43,15 @@ test("gives dopamine and attention a real view with seven-day history", async ()
   assert.match(dashboard, /digitalHistory/);
   assert.match(types, /DigitalDay/);
 });
+
+test("keeps the authenticated dashboard inside the viewport with game icons", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /from "lucide-react"/);
+  assert.match(page, /FlagTriangleRight/);
+  assert.match(styles, /max-width:\s*calc\(100vw - 238px\)/);
+  assert.doesNotMatch(styles, /\.workspace,\s*\.topbar[\s\S]{0,160}width:\s*100%/);
+});

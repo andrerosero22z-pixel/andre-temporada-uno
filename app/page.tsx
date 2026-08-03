@@ -1,6 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowRight,
+  BookOpenText,
+  BrainCircuit,
+  CalendarClock,
+  CalendarDays,
+  Clock3,
+  Droplets,
+  Dumbbell,
+  FlagTriangleRight,
+  Gamepad2,
+  House,
+  ListChecks,
+  MessageCircleMore,
+  MoonStar,
+  PenLine,
+  Play,
+  Repeat2,
+  Smartphone,
+  Sparkles,
+  Target,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 import { AuthScreen } from "@/components/auth-screen";
 import {
   createGoal,
@@ -36,14 +60,30 @@ import type {
   View,
 } from "@/lib/types";
 
-const navItems: { id: View; label: string; icon: string }[] = [
-  { id: "today", label: "Hoy", icon: "✦" },
-  { id: "studies", label: "Planificador", icon: "▦" },
-  { id: "progress", label: "Progreso", icon: "⌁" },
-  { id: "goals", label: "Metas", icon: "◎" },
-  { id: "habits", label: "Hábitos", icon: "◌" },
-  { id: "dopamine", label: "Dopamina", icon: "◐" },
-  { id: "journal", label: "Diario", icon: "✎" },
+const navItems: { id: View; label: string; icon: LucideIcon }[] = [
+  { id: "today", label: "Hoy", icon: House },
+  { id: "studies", label: "Planificador", icon: CalendarDays },
+  { id: "progress", label: "Progreso", icon: TrendingUp },
+  { id: "goals", label: "Metas", icon: Target },
+  { id: "habits", label: "Hábitos", icon: Repeat2 },
+  { id: "dopamine", label: "Dopamina", icon: BrainCircuit },
+  { id: "journal", label: "Diario", icon: BookOpenText },
+];
+
+const minimumItems: { key: HabitKey; icon: LucideIcon; title: string; detail: string }[] = [
+  { key: "prayer", icon: Sparkles, title: "Oración", detail: "10 minutos" },
+  { key: "hygiene", icon: Droplets, title: "Higiene", detail: "Rutina completa" },
+  { key: "movement", icon: Dumbbell, title: "Movimiento", detail: "20 minutos" },
+  { key: "planning", icon: ListChecks, title: "Plan del día", detail: "Revisar pendientes" },
+  { key: "sleep", icon: MoonStar, title: "Descanso", detail: "Dormir a tiempo" },
+];
+
+const digitalMetricCards: { key: keyof DigitalWellbeing; label: string; detail: string; icon: LucideIcon }[] = [
+  { key: "screenTimeMinutes", label: "Celular total", detail: "Todo el uso registrado hoy", icon: Smartphone },
+  { key: "socialMediaMinutes", label: "Redes sociales", detail: "Feeds y mensajería social", icon: MessageCircleMore },
+  { key: "shortVideoMinutes", label: "Videos cortos", detail: "Reels, Shorts y TikTok", icon: Play },
+  { key: "gamingMinutes", label: "Videojuegos", detail: "Juego elegido o automático", icon: Gamepad2 },
+  { key: "intentionalLeisureMinutes", label: "Ocio intencional", detail: "Descanso que decidiste", icon: MoonStar },
 ];
 
 const phases = [
@@ -842,16 +882,19 @@ export default function Home() {
         </div>
 
         <nav className="main-nav" aria-label="Navegación principal">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              className={view === item.id ? "nav-item nav-item--active" : "nav-item"}
-              onClick={() => setView(item.id)}
-            >
-              <span className="nav-item__icon">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                className={view === item.id ? "nav-item nav-item--active" : "nav-item"}
+                onClick={() => setView(item.id)}
+              >
+                <span className="nav-item__icon"><Icon aria-hidden="true" size={19} strokeWidth={1.8} /></span>
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="sidebar__season">
@@ -923,7 +966,7 @@ export default function Home() {
               </div>
               <div className="mission-card__content">
                 <p className="eyebrow">Misión principal</p>
-                <span className="mission-glyph">◆</span>
+                <span className="mission-glyph"><FlagTriangleRight aria-hidden="true" size={27} strokeWidth={1.6} /></span>
                 <h2>
                   {primaryTask ? (
                     <>{primaryTask.subject}:<br />{primaryTask.title}</>
@@ -937,8 +980,8 @@ export default function Home() {
                     : "Añade una tarea o examen y aparecerá aquí como tu siguiente movimiento."}
                 </p>
                 <div className="mission-meta">
-                  <span>◷ <strong>45 min</strong></span>
-                  <span>✦ <strong>XP según evidencia</strong></span>
+                  <span><Clock3 aria-hidden="true" /> <strong>45 min</strong></span>
+                  <span><Sparkles aria-hidden="true" /> <strong>XP según evidencia</strong></span>
                 </div>
                 <button
                   className={`primary-action ${
@@ -957,19 +1000,19 @@ export default function Home() {
                   {primaryTask && missionStatus === "pending" && "Iniciar misión"}
                   {primaryTask && missionStatus === "active" && "Finalizar misión"}
                   {primaryTask && missionStatus === "done" && "Misión cumplida"}
-                  <span>→</span>
+                  <ArrowRight aria-hidden="true" size={22} />
                 </button>
               </div>
             </section>
 
             <aside className="today-rail">
               <section className="evaluation-card panel">
-                <div className="card-icon">▦</div>
+                <div className="card-icon"><CalendarClock aria-hidden="true" size={31} strokeWidth={1.5} /></div>
                 <div>
                   <p className="eyebrow">Próxima evaluación</p>
                   <h3>{nextExam?.title ?? "Sin examen registrado"}</h3>
                   <p className="evaluation-date">
-                    ✦ {nextExam
+                    <Sparkles aria-hidden="true" size={14} /> {nextExam
                       ? `${nextExam.subject} · ${formatTaskDate(nextExam.dueDate, nextExam.state)}`
                       : "Añádelo en el Planificador"}
                   </p>
@@ -990,21 +1033,15 @@ export default function Home() {
                   <span>{completedHabits}/5</span>
                 </div>
                 <div className="minimum-list">
-                  {[
-                    ["prayer", "☼", "Oración", "10 minutos"],
-                    ["hygiene", "♢", "Higiene", "Rutina completa"],
-                    ["movement", "↗", "Movimiento", "20 minutos"],
-                    ["planning", "▦", "Plan del día", "Revisar pendientes"],
-                    ["sleep", "☾", "Descanso", "Dormir a tiempo"],
-                  ].map(([key, icon, title, detail]) => {
-                    const done = habits[key as keyof typeof habits];
+                  {minimumItems.map(({ key, icon: Icon, title, detail }) => {
+                    const done = habits[key];
                     return (
                       <button
                         key={key}
                         className={done ? "minimum minimum--done" : "minimum"}
-                        onClick={() => toggleHabit(key as keyof typeof habits)}
+                        onClick={() => toggleHabit(key)}
                       >
-                        <span className="minimum__icon">{icon}</span>
+                        <span className="minimum__icon"><Icon aria-hidden="true" size={18} strokeWidth={1.8} /></span>
                         <span><strong>{title}</strong><small>{detail}</small></span>
                         <i>{done ? "✓" : ""}</i>
                       </button>
@@ -1018,15 +1055,15 @@ export default function Home() {
             </aside>
 
             <button className="quick-card panel" onClick={() => setModal("quick")}>
-              <span className="quick-card__icon">✎</span>
+              <span className="quick-card__icon"><PenLine aria-hidden="true" size={22} /></span>
               <span>
                 <small>Captura rápida</small>
                 <strong>Registrar algo</strong>
               </span>
-              <i>→</i>
+              <i><ArrowRight aria-hidden="true" size={19} /></i>
             </button>
             <button className="close-day panel" onClick={() => setModal("close")}>
-              <span>☾</span>
+              <span><MoonStar aria-hidden="true" size={24} /></span>
               <strong>Cerrar el día</strong>
               <small>2 min</small>
             </button>
@@ -1715,16 +1752,10 @@ export default function Home() {
             </section>
 
             <section className="dopamine-metric-grid">
-              {[
-                ["Celular total", digitalWellbeing.screenTimeMinutes, "Todo el uso registrado hoy", "◫"],
-                ["Redes sociales", digitalWellbeing.socialMediaMinutes, "Feeds y mensajería social", "◎"],
-                ["Videos cortos", digitalWellbeing.shortVideoMinutes, "Reels, Shorts y TikTok", "▶"],
-                ["Videojuegos", digitalWellbeing.gamingMinutes, "Juego elegido o automático", "◇"],
-                ["Ocio intencional", digitalWellbeing.intentionalLeisureMinutes, "Descanso que decidiste", "☾"],
-              ].map(([label, value, detail, icon]) => (
-                <article className="dopamine-metric panel" key={String(label)}>
-                  <span>{icon}</span>
-                  <div><small>{label}</small><strong>{value ?? 0} min</strong><p>{detail}</p></div>
+              {digitalMetricCards.map(({ key, label, detail, icon: Icon }) => (
+                <article className="dopamine-metric panel" key={key}>
+                  <span><Icon aria-hidden="true" size={18} strokeWidth={1.7} /></span>
+                  <div><small>{label}</small><strong>{digitalWellbeing[key] ?? 0} min</strong><p>{detail}</p></div>
                 </article>
               ))}
             </section>
@@ -1768,7 +1799,7 @@ export default function Home() {
 
             <section className="dopamine-lower-grid">
               <article className="attention-insight panel">
-                <span>✦</span>
+                <span><Sparkles aria-hidden="true" size={21} /></span>
                 <div><p className="eyebrow">Lectura estratégica</p><h3>{digitalInsight}</h3></div>
               </article>
               <article className="digital-averages panel">
@@ -1854,16 +1885,19 @@ export default function Home() {
       </section>
 
       <nav className="mobile-nav" aria-label="Navegación móvil">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            className={view === item.id ? "mobile-nav__active" : ""}
-            onClick={() => setView(item.id)}
-          >
-            <span>{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              className={view === item.id ? "mobile-nav__active" : ""}
+              onClick={() => setView(item.id)}
+            >
+              <span><Icon aria-hidden="true" size={18} strokeWidth={1.8} /></span>
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
 
       {modal === "quick" && (

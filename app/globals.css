@@ -29,6 +29,8 @@ html {
 
 body {
   margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 76% 4%, rgba(70, 92, 137, 0.13), transparent 32%),
     var(--night);
@@ -53,6 +55,8 @@ textarea:focus-visible {
 
 .app-shell {
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .sidebar {
@@ -185,6 +189,11 @@ textarea:focus-visible {
   font-size: 21px;
 }
 
+.nav-item__icon svg,
+.mobile-nav svg {
+  display: block;
+}
+
 .sidebar__season {
   position: relative;
   margin: auto 9px 24px;
@@ -273,8 +282,10 @@ textarea:focus-visible {
   place-items: center;
   border: 1px solid var(--gold);
   border-radius: 50%;
-  background: linear-gradient(135deg, #32496d, #17233a);
-  color: var(--gold-bright);
+  background:
+    linear-gradient(180deg, rgba(8, 15, 26, .04), rgba(8, 15, 26, .22)),
+    url("/art/data-apprentice.webp") 50% 18% / cover no-repeat;
+  color: transparent;
   font-family: var(--serif);
   font-size: 19px;
 }
@@ -296,8 +307,11 @@ textarea:focus-visible {
 }
 
 .workspace {
+  width: auto;
+  max-width: calc(100vw - 238px);
   min-height: 100vh;
   margin-left: 238px;
+  overflow-x: clip;
   padding: 31px 36px 44px;
 }
 
@@ -550,8 +564,16 @@ textarea:focus-visible {
 }
 
 .mission-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--emerald);
   font-size: 20px;
+}
+
+.mission-meta svg {
+  width: 18px;
+  height: 18px;
 }
 
 .mission-meta strong {
@@ -595,6 +617,7 @@ textarea:focus-visible {
 
 .today-rail {
   display: grid;
+  min-width: 0;
   gap: 18px;
 }
 
@@ -635,6 +658,9 @@ textarea:focus-visible {
 }
 
 .evaluation-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 8px 0 18px;
   color: var(--gold);
   font-size: 13px;
@@ -710,6 +736,13 @@ textarea:focus-visible {
   border: 1px solid rgba(216,183,109,.3);
   border-radius: 50%;
   color: var(--gold);
+}
+
+.minimum__icon svg,
+.card-icon svg,
+.quick-card svg,
+.close-day svg {
+  display: block;
 }
 
 .minimum > span:nth-child(2) {
@@ -1387,6 +1420,13 @@ textarea:focus-visible {
     linear-gradient(90deg, rgba(12, 20, 33, .98) 0%, rgba(12, 20, 33, .9) 47%, rgba(12, 20, 33, .28) 74%, rgba(8, 14, 24, .38) 100%),
     linear-gradient(0deg, rgba(8, 14, 24, .8), transparent 60%),
     url("/art/data-apprentice.webp") right 28% / cover no-repeat;
+}
+
+.evaluation-card > div:last-child,
+.minimums-card,
+.minimum-list,
+.minimum {
+  min-width: 0;
 }
 
 .brand .brand-version {
@@ -2641,7 +2681,7 @@ button.heat-cell:hover {
 
 @media (max-width: 1050px) {
   .sidebar { width: 205px; }
-  .workspace { margin-left: 205px; padding-inline: 24px; }
+  .workspace { max-width: calc(100vw - 205px); margin-left: 205px; padding-inline: 24px; }
   .brand > div:last-child { display: none; }
   .dashboard { grid-template-columns: 1fr; }
   .mission-card { min-height: 500px; }
@@ -2663,6 +2703,7 @@ button.heat-cell:hover {
   body { padding-bottom: 74px; }
   .sidebar { display: none; }
   .workspace {
+    max-width: 100vw;
     margin: 0;
     padding: 19px 15px 30px;
   }
@@ -3648,7 +3689,6 @@ button:disabled {
 }
 
 /* Alineación general y página de Dopamina */
-.workspace,
 .topbar,
 .dashboard,
 .content-view {
