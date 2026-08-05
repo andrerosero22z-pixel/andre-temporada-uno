@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ArrowRight,
   BookOpenText,
@@ -10,6 +10,7 @@ import {
   Clock3,
   Droplets,
   Dumbbell,
+  Eye,
   FlagTriangleRight,
   Gamepad2,
   House,
@@ -295,6 +296,18 @@ const attributeGroups: AttributeGroup[] = [
 
 const initialTasks: Task[] = [];
 
+function subscribeToReviewMode() {
+  return () => undefined;
+}
+
+function getReviewModeSnapshot() {
+  return new URLSearchParams(window.location.search).get("review") === "1";
+}
+
+function getReviewModeServerSnapshot() {
+  return false;
+}
+
 function formatTaskDate(value: string | null, state: TaskState) {
   if (state === "done") return "Completada";
   if (!value) return "Sin fecha";
@@ -423,6 +436,11 @@ export default function Home() {
   >("checking");
   const [userId, setUserId] = useState("");
   const [userLabel, setUserLabel] = useState("Andre");
+  const reviewMode = useSyncExternalStore(
+    subscribeToReviewMode,
+    getReviewModeSnapshot,
+    getReviewModeServerSnapshot,
+  );
   const [view, setView] = useState<View>("today");
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
@@ -602,6 +620,8 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (getReviewModeSnapshot()) return;
+
     const client = getSupabaseBrowserClient();
     let mounted = true;
 
@@ -677,6 +697,10 @@ export default function Home() {
   }
 
   async function toggleHabit(key: HabitKey) {
+    if (reviewMode) {
+      notify("Modo revisión: los cambios están bloqueados.");
+      return;
+    }
     const habitId = habitIds[key];
     if (!userId || !habitId) {
       notify("El hábito todavía no está listo. Recarga e inténtalo de nuevo.");
@@ -698,6 +722,10 @@ export default function Home() {
   }
 
   async function toggleTask(id: string) {
+    if (reviewMode) {
+      notify("Modo revisión: los cambios están bloqueados.");
+      return;
+    }
     const currentTask = tasks.find((task) => task.id === id);
     if (!currentTask) return;
     const nextState: TaskState = currentTask.state === "done" ? "today" : "done";
@@ -721,6 +749,10 @@ export default function Home() {
   }
 
   async function saveQuickEntry() {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
     if (!userId) {
       notify("Tu sesión expiró. Vuelve a entrar.");
       return;
@@ -809,6 +841,10 @@ export default function Home() {
   }
 
   async function toggleTrackedHabit(habit: HabitOverview) {
+    if (reviewMode) {
+      notify("Modo revisión: los cambios están bloqueados.");
+      return;
+    }
     if (!userId) return;
     try {
       await setHabitCheckin(
@@ -829,6 +865,10 @@ export default function Home() {
   }
 
   async function saveJournal() {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
     if (!note.trim()) {
       notify("Escribe primero una reflexión breve.");
       return;
@@ -847,6 +887,10 @@ export default function Home() {
   }
 
   async function finishMission(result: string, index: number) {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
     if (!primaryTask) return;
     setSaving(true);
     try {
@@ -870,6 +914,10 @@ export default function Home() {
   }
 
   async function closeDay() {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
     setSaving(true);
     try {
       const summary = note.trim() || `Cierre del día: ${completedHabits} de 5 no negociables.`;
@@ -886,6 +934,10 @@ export default function Home() {
   }
 
   async function activateRecovery() {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
     setSaving(true);
     try {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -907,15 +959,19 @@ export default function Home() {
   }
 
   async function signOut() {
+    if (reviewMode) {
+      window.location.href = window.location.origin;
+      return;
+    }
     await getSupabaseBrowserClient().auth.signOut();
   }
 
-  if (authStatus !== "signed_in") {
+  if (!reviewMode && authStatus !== "signed_in") {
     return <AuthScreen loading={authStatus === "checking"} />;
   }
 
   return (
-    <main className="app-shell">
+    <main className={reviewMode ? "app-shell app-shell--review" : "app-shell"}>
       <aside className="sidebar">
         <div className="brand">
           <BrandMark />
@@ -954,16 +1010,23 @@ export default function Home() {
 
         <div className="profile-chip">
           <span className="profile-chip__avatar">
-            {userLabel.charAt(0).toUpperCase()}
+            {(reviewMode ? "R" : userLabel.charAt(0)).toUpperCase()}
           </span>
           <div>
-            <strong>{userLabel}</strong>
-            <small>Nivel {globalLevel} · Inicio real</small>
+            <strong>{reviewMode ? "Revisión" : userLabel}</strong>
+            <small>{reviewMode ? "Solo lectura" : `Nivel ${globalLevel} · Inicio real`}</small>
           </div>
         </div>
       </aside>
 
       <section className="workspace">
+        {reviewMode && (
+          <div className="review-banner" role="status">
+            <span><Eye aria-hidden="true" size={17} strokeWidth={1.8} /></span>
+            <div><strong>Modo revisión</strong><small>Sin acceso a datos privados · solo lectura</small></div>
+            <button onClick={signOut} type="button">Cerrar revisión</button>
+          </div>
+        )}
         <header className="topbar">
           <div>
             <p className="eyebrow">{todayLabel()}</p>
@@ -988,7 +1051,7 @@ export default function Home() {
               <ProgressBar value={(levelXp / 500) * 100} accent="var(--gold)" />
             </div>
             <button className="sign-out" onClick={signOut} type="button">
-              Salir
+              {reviewMode ? "Cerrar" : "Salir"}
             </button>
           </div>
         </header>

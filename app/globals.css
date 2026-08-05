@@ -315,6 +315,42 @@ textarea:focus-visible {
   padding: 31px 36px 44px;
 }
 
+.review-banner {
+  display: grid;
+  max-width: 1400px;
+  min-height: 52px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  margin: 0 auto 16px;
+  border: 1px solid rgba(226, 194, 125, .34);
+  border-radius: 13px;
+  background: linear-gradient(90deg, rgba(205,168,102,.12), rgba(57,77,118,.18));
+  padding: 9px 13px;
+}
+
+.review-banner > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(226,194,125,.3);
+  border-radius: 50%;
+  color: var(--gold-bright);
+}
+
+.review-banner > div { display: grid; gap: 2px; }
+.review-banner strong { font-size: 10px; }
+.review-banner small { color: var(--muted); font-size: 8px; }
+.review-banner button {
+  border: 0;
+  background: transparent;
+  color: var(--gold-bright);
+  cursor: pointer;
+  font-size: 9px;
+  padding: 8px;
+}
+
 .topbar {
   display: flex;
   max-width: 1400px;
@@ -2707,6 +2743,9 @@ button.heat-cell:hover {
     margin: 0;
     padding: 19px 15px 30px;
   }
+  .review-banner { grid-template-columns: 30px minmax(0, 1fr); margin-bottom: 13px; }
+  .review-banner > span { width: 29px; height: 29px; }
+  .review-banner button { display: none; }
   .topbar {
     align-items: flex-start;
     margin-bottom: 17px;
