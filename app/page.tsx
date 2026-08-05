@@ -1962,7 +1962,6 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                       </button>
                     );
                   })}
-                  {activeMinimumItems.length === 0 && <div className="empty-inline"><strong>Sin no negociables activos</strong><small>Elígelos desde Sistema cuando estés listo.</small></div>}
                   {nutritionHabits.length === 0 && (
                     <div className="nutrition-empty">
                       <strong>Sin hábitos todavía</strong>
