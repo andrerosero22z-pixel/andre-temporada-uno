@@ -4,6 +4,7 @@ export type View =
   | "progress"
   | "goals"
   | "habits"
+  | "nutrition"
   | "dopamine"
   | "journal";
 

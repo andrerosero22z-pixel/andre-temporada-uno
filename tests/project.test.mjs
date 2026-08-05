@@ -57,6 +57,22 @@ test("keeps technical labels and fake academic progress out of the interface", a
   assert.match(page, /nextExam && <section className="path-card panel">/);
 });
 
+test("separates nutrition into a real tracking page and keeps empty cards aligned", async () => {
+  const [page, styles, types] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../lib/types.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(types, /\| "nutrition"/);
+  assert.match(page, /id: "nutrition"/);
+  assert.match(page, /view === "nutrition"/);
+  assert.match(page, /toggleTrackedHabit/);
+  assert.doesNotMatch(page, /name: "Nutrición"/);
+  assert.match(styles, /\.empty-state\s*\{[\s\S]*?padding:\s*26px/);
+  assert.match(styles, /\.subject-grid > \.empty-state/);
+});
+
 test("keeps the authenticated dashboard inside the viewport with game icons", async () => {
   const [page, styles] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

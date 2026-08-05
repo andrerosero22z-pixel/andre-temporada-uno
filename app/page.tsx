@@ -23,6 +23,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Utensils,
   type LucideIcon,
 } from "lucide-react";
 import { AuthScreen } from "@/components/auth-screen";
@@ -66,6 +67,7 @@ const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "progress", label: "Progreso", icon: TrendingUp },
   { id: "goals", label: "Metas", icon: Target },
   { id: "habits", label: "Hábitos", icon: Repeat2 },
+  { id: "nutrition", label: "Nutrición", icon: Utensils },
   { id: "dopamine", label: "Dopamina", icon: BrainCircuit },
   { id: "journal", label: "Diario", icon: BookOpenText },
 ];
@@ -91,6 +93,13 @@ const attentionBooks = [
   { title: "Hábitos atómicos", author: "James Clear", theme: "Sistema y constancia" },
   { title: "Trabajo profundo", author: "Cal Newport", theme: "Concentración" },
   { title: "Nación dopamina", author: "Anna Lembke", theme: "Recompensa y compulsión" },
+];
+
+const nutritionHabitSuggestions = [
+  { title: "Planificar comidas", detail: "Decidir antes de tener hambre", unit: "vez" },
+  { title: "Preparar una comida", detail: "Reducir la improvisación", unit: "comida" },
+  { title: "Comer sin pantalla", detail: "Una comida con atención", unit: "comida" },
+  { title: "Registrar alimentación", detail: "Observar sin juzgar", unit: "registro" },
 ];
 
 const phases = [
@@ -189,14 +198,6 @@ const attributeGroups: AttributeGroup[] = [
         next: 180,
         evidence: "5 sesiones de cardio",
         focus: "Dos sesiones breves por semana.",
-      },
-      {
-        name: "Nutrición",
-        level: 4,
-        xp: 115,
-        next: 200,
-        evidence: "8 días registrados",
-        focus: "Mejorar la constancia de las comidas.",
       },
       {
         name: "Movilidad y postura",
@@ -555,6 +556,13 @@ export default function Home() {
     { label: "Grasa estimada", value: bodyMeasurement?.bodyFatPercent == null ? "Por registrar" : `${bodyMeasurement.bodyFatPercent}%`, trend: "Meta personal" },
     { label: "Energía", value: bodyMeasurement?.energyLevel == null ? "Por registrar" : `${bodyMeasurement.energyLevel} / 5`, trend: bodyMeasurement?.recordedOn ?? "Línea base" },
   ];
+  const nutritionPattern = /aliment|nutric|comida|agua|proteína|fruta|verdura/i;
+  const nutritionHabits = habitData.filter((habit) => nutritionPattern.test(habit.title));
+  const nutritionGoals = goalData.filter((goal) => nutritionPattern.test(`${goal.title} ${goal.reason ?? ""}`));
+  const nutritionConsistency = nutritionHabits.length
+    ? Math.round(nutritionHabits.reduce((sum, habit) => sum + habit.rate, 0) / nutritionHabits.length)
+    : null;
+  const strongestNutritionHabit = [...nutritionHabits].sort((left, right) => right.streak - left.streak)[0];
   const plannerDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() + index);
@@ -792,6 +800,29 @@ export default function Home() {
     }
   }
 
+  function prepareNutritionHabit(title = "", unitName = "vez") {
+    setEntryType("Hábito");
+    setNote(title);
+    setTargetValue("1");
+    setUnit(unitName);
+    setModal("quick");
+  }
+
+  async function toggleTrackedHabit(habit: HabitOverview) {
+    if (!userId) return;
+    try {
+      await setHabitCheckin(
+        getSupabaseBrowserClient(),
+        userId,
+        habit.id,
+        !habit.week.at(-1),
+      );
+      await refreshData();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo guardar el hábito.");
+    }
+  }
+
   function selectAttribute(group: AttributeGroup) {
     setActiveAttribute(group.name);
     setSelectedSkillName(group.skills[0].name);
@@ -942,6 +973,7 @@ export default function Home() {
               {view === "progress" && "Mapa de progreso"}
               {view === "goals" && "Metas"}
               {view === "habits" && "Hábitos"}
+              {view === "nutrition" && "Nutrición"}
               {view === "dopamine" && "Atención"}
               {view === "journal" && "Diario"}
             </h1>
@@ -1708,6 +1740,96 @@ export default function Home() {
                   podrá comparar patrones sin confundirte con conclusiones de demostración.
                 </p>
               </div>
+            </section>
+          </div>
+        )}
+
+        {view === "nutrition" && (
+          <div className="content-view nutrition-view">
+            <section className="nutrition-hero panel">
+              <div>
+                <p className="eyebrow">Nutrición</p>
+                <h2>Alimenta el progreso.</h2>
+                <p>Planifica, registra y descubre qué puedes sostener. Sin dietas inventadas ni días “perfectos”.</p>
+                <button className="secondary-action" onClick={() => prepareNutritionHabit()}>+ Hábito nutricional</button>
+              </div>
+              <div className="nutrition-hero__mark" aria-hidden="true">
+                <span><Utensils size={32} strokeWidth={1.5} /></span>
+                <strong>{nutritionConsistency == null ? "—" : `${nutritionConsistency}%`}</strong>
+                <small>constancia</small>
+              </div>
+            </section>
+
+            <section className="nutrition-kpis">
+              <article className="nutrition-kpi panel"><small>Hábitos activos</small><strong>{nutritionHabits.length}</strong><span>solo registros de nutrición</span></article>
+              <article className="nutrition-kpi panel"><small>Mejor racha</small><strong>{strongestNutritionHabit?.streak ?? 0} días</strong><span>{strongestNutritionHabit?.title ?? "Sin registros"}</span></article>
+              <article className="nutrition-kpi panel"><small>Energía</small><strong>{bodyMeasurement?.energyLevel == null ? "—" : `${bodyMeasurement.energyLevel}/5`}</strong><span>{bodyMeasurement?.recordedOn ?? "Sin medición"}</span></article>
+              <article className="nutrition-kpi panel"><small>Metas activas</small><strong>{nutritionGoals.length}</strong><span>resultados relacionados</span></article>
+            </section>
+
+            <section className="nutrition-main-grid">
+              <article className="nutrition-tracker panel">
+                <div className="section-heading">
+                  <div><p className="eyebrow">Hoy</p><h3>Hábitos de alimentación</h3></div>
+                  <button className="secondary-action" onClick={() => prepareNutritionHabit()}>Añadir</button>
+                </div>
+                <div className="nutrition-habit-list">
+                  {nutritionHabits.map((habit) => {
+                    const completedToday = habit.week.at(-1) ?? false;
+                    return (
+                      <button className={completedToday ? "nutrition-habit nutrition-habit--done" : "nutrition-habit"} key={habit.id} onClick={() => toggleTrackedHabit(habit)}>
+                        <span>{completedToday ? "✓" : ""}</span>
+                        <div><strong>{habit.title}</strong><small>{habit.goal} · racha {habit.streak} días</small></div>
+                        <b>{habit.rate}%</b>
+                      </button>
+                    );
+                  })}
+                  {nutritionHabits.length === 0 && (
+                    <div className="nutrition-empty">
+                      <strong>Sin hábitos todavía</strong>
+                      <p>Elige una base simple y ajústala a tu vida.</p>
+                    </div>
+                  )}
+                </div>
+              </article>
+
+              <article className="nutrition-measurements panel">
+                <div className="section-heading"><div><p className="eyebrow">Evidencia</p><h3>Mediciones</h3></div></div>
+                <div className="nutrition-measurement-list">
+                  {realBodyMetrics.map((metric) => <div key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong></div>)}
+                </div>
+                <button className="ghost-action" onClick={() => { setEntryType("Medición"); setModal("quick"); }}>Registrar medición</button>
+              </article>
+            </section>
+
+            <section className="nutrition-suggestions panel">
+              <div className="section-heading">
+                <div><p className="eyebrow">Punto de partida</p><h3>Hábitos que puedes adaptar</h3></div>
+              </div>
+              <div className="nutrition-suggestion-grid">
+                {nutritionHabitSuggestions.map((suggestion) => {
+                  const exists = nutritionHabits.some((habit) => habit.title === suggestion.title);
+                  return (
+                    <article key={suggestion.title}>
+                      <span><Utensils size={17} strokeWidth={1.6} /></span>
+                      <div><strong>{suggestion.title}</strong><small>{suggestion.detail}</small></div>
+                      <button disabled={exists} onClick={() => prepareNutritionHabit(suggestion.title, suggestion.unit)}>{exists ? "Añadido" : "Añadir"}</button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="nutrition-goals panel">
+              <div className="section-heading">
+                <div><p className="eyebrow">Dirección</p><h3>Metas relacionadas</h3></div>
+                <button className="secondary-action" onClick={() => { setEntryType("Meta"); setModal("quick"); }}>+ Meta</button>
+              </div>
+              {nutritionGoals.length > 0 ? (
+                <div className="nutrition-goal-list">
+                  {nutritionGoals.map((goal) => <article key={goal.id}><strong>{goal.title}</strong><span>{goal.currentValue ?? "—"} → {goal.targetValue ?? "—"} {goal.unit}</span><small>{goal.targetDate ?? "Sin fecha"}</small></article>)}
+                </div>
+              ) : <div className="nutrition-empty nutrition-empty--compact"><strong>Sin metas nutricionales</strong><p>Crea una solo si el resultado realmente necesita seguimiento.</p></div>}
             </section>
           </div>
         )}
