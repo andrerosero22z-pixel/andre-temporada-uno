@@ -430,17 +430,18 @@ function SkillCard({
   );
 }
 
-export default function Home() {
+export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) {
   const [authStatus, setAuthStatus] = useState<
     "checking" | "signed_in" | "signed_out"
   >("checking");
   const [userId, setUserId] = useState("");
   const [userLabel, setUserLabel] = useState("Andre");
-  const reviewMode = useSyncExternalStore(
+  const reviewFromQuery = useSyncExternalStore(
     subscribeToReviewMode,
     getReviewModeSnapshot,
     getReviewModeServerSnapshot,
   );
+  const reviewMode = forcedReview || reviewFromQuery;
   const [view, setView] = useState<View>("today");
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
@@ -620,7 +621,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (getReviewModeSnapshot()) return;
+    if (reviewMode) return;
 
     const client = getSupabaseBrowserClient();
     let mounted = true;
@@ -655,7 +656,7 @@ export default function Home() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [reviewMode]);
 
   useEffect(() => {
     if (!userId) return;
@@ -2311,4 +2312,8 @@ export default function Home() {
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );
+}
+
+export default function Home() {
+  return <Dashboard />;
 }
