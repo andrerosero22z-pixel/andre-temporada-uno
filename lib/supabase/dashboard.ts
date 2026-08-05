@@ -10,6 +10,9 @@ import type {
   HabitOverview,
   HabitState,
   JournalEntry,
+  MealLog,
+  ProfileSettings,
+  SeasonInfo,
   StoredSkill,
   SubjectSummary,
   Task,
@@ -20,13 +23,13 @@ const TIME_ZONE = "America/Guayaquil";
 
 const habitDefinitions: Record<
   HabitKey,
-  { title: string; unit: string; xp: number }
+  { title: string; unit: string; systemKey: string }
 > = {
-  prayer: { title: "Oración", unit: "vez", xp: 5 },
-  hygiene: { title: "Higiene básica", unit: "rutina", xp: 5 },
-  movement: { title: "Movimiento", unit: "sesión", xp: 5 },
-  planning: { title: "Planificar el día", unit: "vez", xp: 5 },
-  sleep: { title: "Dormir a tiempo", unit: "vez", xp: 5 },
+  prayer: { title: "Oración", unit: "vez", systemKey: "prayer" },
+  hygiene: { title: "Higiene básica", unit: "rutina", systemKey: "hygiene" },
+  movement: { title: "Movimiento", unit: "sesión", systemKey: "movement" },
+  planning: { title: "Planificar el día", unit: "vez", systemKey: "daily_planning" },
+  sleep: { title: "Dormir a tiempo", unit: "vez", systemKey: "sleep_on_time" },
 };
 
 const digitalDefinitions = {
@@ -37,6 +40,15 @@ const digitalDefinitions = {
   intentionalLeisureMinutes: { title: "Ocio intencional", unit: "min" },
   stimulationFastMinutes: { title: "Ayuno de estímulos", unit: "min" },
 } as const;
+
+const digitalSystemKeys: Record<keyof DigitalWellbeing, string> = {
+  screenTimeMinutes: "screen_time",
+  socialMediaMinutes: "social_media",
+  shortVideoMinutes: "short_video",
+  gamingMinutes: "gaming",
+  intentionalLeisureMinutes: "intentional_leisure",
+  stimulationFastMinutes: "stimulation_fast",
+};
 
 type SubjectRow = {
   id: string;
@@ -65,6 +77,7 @@ type HabitRow = {
   habit_type: "habit" | "non_negotiable";
   target_amount: number;
   unit: string;
+  system_key?: string | null;
 };
 type HabitLogRow = {
   habit_id: string;
@@ -91,14 +104,38 @@ type BodyRow = {
 };
 type ReviewRow = {
   id: string;
-  review_date: string;
-  lessons: string | null;
+  entry_date: string;
+  content: string;
   mood: number | null;
 };
 type SkillRow = {
   id: string;
   name: string;
   current_xp: number;
+  mastery_percent: number | null;
+};
+
+type ProfileRow = {
+  coins: number;
+  purpose: string | null;
+  onboarding_completed: boolean;
+  journal_ai_allowed: boolean;
+};
+
+type SeasonRow = {
+  id: string;
+  name: string;
+  status: SeasonInfo["status"];
+  start_date: string;
+  end_date: string;
+};
+
+type MealRow = {
+  id: string;
+  meal_date: string;
+  meal_type: string;
+  description: string;
+  observation: string | null;
 };
 
 function localDate(value = new Date()) {
@@ -144,47 +181,6 @@ function evaluationType(value: EvaluationRow["evaluation_type"]): Task["type"] {
 function unwrap<T>(result: { data: T | null; error: { message: string } | null }) {
   if (result.error) throw new Error(result.error.message);
   return result.data;
-}
-
-async function ensureDefaultHabits(
-  client: SupabaseClient,
-  userId: string,
-  existing: HabitRow[],
-) {
-  const existingTitles = new Set(existing.map((habit) => habit.title));
-  const defaults = [
-    ...(Object.keys(habitDefinitions) as HabitKey[]).map((key) => ({
-      title: habitDefinitions[key].title,
-      habit_type: "non_negotiable" as const,
-      target_amount: 1,
-      unit: habitDefinitions[key].unit,
-      xp_reward: habitDefinitions[key].xp,
-    })),
-    ...Object.values(digitalDefinitions).map((definition) => ({
-      title: definition.title,
-      habit_type: "habit" as const,
-      target_amount: 0,
-      unit: definition.unit,
-      xp_reward: 0,
-    })),
-  ];
-  const missing = defaults
-    .filter((definition) => !existingTitles.has(definition.title))
-    .map((definition) => ({
-      user_id: userId,
-      ...definition,
-      frequency: { type: "daily" },
-      active: true,
-    }));
-
-  if (missing.length === 0) return existing;
-  const inserted = unwrap<HabitRow[]>(
-    await client
-      .from("habits")
-      .insert(missing)
-      .select("id, title, habit_type, target_amount, unit"),
-  );
-  return [...existing, ...(inserted ?? [])];
 }
 
 function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
@@ -253,17 +249,21 @@ function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
     const byDate = new Map(
       logs.filter((log) => log.habit_id === habit.id).map((log) => [log.log_date, log.completed]),
     );
-    const history = dates.map((date) => byDate.get(date) ?? false);
-    let streak = 0;
-    for (let index = history.length - 1; index >= 0 && history[index]; index -= 1) streak += 1;
-    const completed = history.filter(Boolean).length;
+    const history = dates.map((date) => byDate.has(date) ? Boolean(byDate.get(date)) : null);
+    const recordedDays = history.filter((value) => value !== null).length;
+    let streak: number | null = recordedDays ? 0 : null;
+    for (let index = history.length - 1; index >= 0 && history[index] === true; index -= 1) {
+      streak = (streak ?? 0) + 1;
+    }
+    const completed = history.filter((value) => value === true).length;
     return {
       id: habit.id,
       title: habit.title,
       habitType: habit.habit_type,
       goal: habit.target_amount > 0 ? `${habit.target_amount} ${habit.unit}` : "Registrar",
       streak,
-      rate: Math.round((completed / 28) * 100),
+      rate: recordedDays >= 7 ? Math.round((completed / recordedDays) * 100) : null,
+      recordedDays,
       week: history.slice(-7),
     };
   });
@@ -292,25 +292,28 @@ export async function loadDashboardData(
     evidenceResult,
     xpResult,
     profileResult,
+    seasonResult,
+    mealsResult,
   ] = await Promise.all([
     client.from("subjects").select("id, name, status").eq("user_id", userId).order("name"),
     client.from("tasks").select("id, title, subject_id, task_type, status, due_at").eq("user_id", userId).neq("status", "cancelled").order("due_at", { ascending: true, nullsFirst: false }),
     client.from("evaluations").select("id, title, subject_id, evaluation_type, status, evaluation_at").eq("user_id", userId).neq("status", "cancelled").order("evaluation_at"),
-    client.from("habits").select("id, title, habit_type, target_amount, unit").eq("user_id", userId).eq("active", true),
+    client.from("habits").select("id, title, habit_type, target_amount, unit, system_key").eq("user_id", userId).eq("active", true),
     client.from("goals").select("id, title, reason, current_value, target_value, unit, target_date").eq("user_id", userId).eq("status", "active").order("created_at"),
     client.from("body_measurements").select("recorded_on, weight_kg, body_fat_percent, waist_cm, energy_level, sleep_hours").eq("user_id", userId).order("recorded_on", { ascending: false }).limit(1),
-    client.from("reviews").select("id, review_date, lessons, mood").eq("user_id", userId).eq("review_type", "daily").order("review_date", { ascending: false }).limit(20),
-    client.from("skills").select("id, name, current_xp").eq("user_id", userId),
+    client.from("journal_entries").select("id, entry_date, content, mood").eq("user_id", userId).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(20),
+    client.from("skills").select("id, name, current_xp, mastery_percent").eq("user_id", userId),
     client.from("skill_evidence").select("skill_id").eq("user_id", userId),
     client.from("xp_transactions").select("amount").eq("user_id", userId),
-    client.from("profiles").select("coins").eq("user_id", userId).maybeSingle(),
+    client.from("profiles").select("coins, purpose, onboarding_completed, journal_ai_allowed").eq("user_id", userId).maybeSingle(),
+    client.from("seasons").select("id, name, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("meal_logs").select("id, meal_date, meal_type, description, observation").eq("user_id", userId).order("meal_date", { ascending: false }).order("created_at", { ascending: false }).limit(12),
   ]);
 
   const subjects = unwrap<SubjectRow[]>(subjectsResult) ?? [];
   const taskRows = unwrap<TaskRow[]>(tasksResult) ?? [];
   const evaluationRows = unwrap<EvaluationRow[]>(evaluationsResult) ?? [];
-  const existingHabits = unwrap<HabitRow[]>(habitsResult) ?? [];
-  const habits = await ensureDefaultHabits(client, userId, existingHabits);
+  const habits = unwrap<HabitRow[]>(habitsResult) ?? [];
   const habitIds = habits.map((habit) => habit.id);
   const logs = habitIds.length === 0
     ? []
@@ -379,11 +382,10 @@ export async function loadDashboardData(
       }
     : null;
   const journalEntries: JournalEntry[] = (unwrap<ReviewRow[]>(reviewsResult) ?? [])
-    .filter((review) => review.lessons)
     .map((review) => ({
       id: review.id,
-      date: review.review_date,
-      body: review.lessons ?? "",
+      date: review.entry_date,
+      body: review.content,
       mood: review.mood,
     }));
   const evidenceCounts = new Map<string, number>();
@@ -395,9 +397,33 @@ export async function loadDashboardData(
     name: skill.name,
     xp: skill.current_xp,
     evidenceCount: evidenceCounts.get(skill.id) ?? 0,
+    mastery: skill.mastery_percent === null ? null : Number(skill.mastery_percent),
   }));
   const totalXp = (unwrap<{ amount: number }[]>(xpResult) ?? []).reduce((sum, row) => sum + row.amount, 0);
-  const profile = unwrap<{ coins: number }>(profileResult);
+  const profileRow = unwrap<ProfileRow>(profileResult);
+  const seasonRow = unwrap<SeasonRow>(seasonResult);
+  const profile: ProfileSettings = {
+    onboardingCompleted: profileRow?.onboarding_completed ?? false,
+    purpose: profileRow?.purpose ?? "",
+    journalAiAllowed: profileRow?.journal_ai_allowed ?? false,
+  };
+  const season: SeasonInfo = {
+    id: seasonRow?.id ?? null,
+    name: seasonRow?.name ?? "Temporada 1",
+    status: seasonRow?.status ?? "planned",
+    startDate: seasonRow?.start_date ?? null,
+    endDate: seasonRow?.end_date ?? null,
+    week: seasonRow?.status === "active" && seasonRow.start_date
+      ? Math.max(1, Math.min(8, Math.floor((Date.now() - new Date(`${seasonRow.start_date}T00:00:00-05:00`).getTime()) / 604800000) + 1))
+      : null,
+  };
+  const meals: MealLog[] = (unwrap<MealRow[]>(mealsResult) ?? []).map((meal) => ({
+    id: meal.id,
+    mealDate: meal.meal_date,
+    mealType: meal.meal_type,
+    description: meal.description,
+    observation: meal.observation ?? "",
+  }));
 
   return {
     tasks,
@@ -406,8 +432,11 @@ export async function loadDashboardData(
     bodyMeasurement,
     journalEntries,
     skills,
+    profile,
+    season,
+    meals,
     totalXp: Math.max(0, totalXp),
-    coins: profile?.coins ?? 0,
+    coins: profileRow?.coins ?? 0,
     ...buildHabitData(habits, logs),
   };
 }
@@ -480,11 +509,47 @@ export async function saveDigitalWellbeing(
   habitIds: Record<string, string>,
   values: DigitalWellbeing,
 ) {
+  const resolvedIds = { ...habitIds };
+  const unresolvedKeys = Object.keys(digitalDefinitions).filter((key) => !resolvedIds[key]);
+  if (unresolvedKeys.length) {
+    const existing = unwrap<Array<{ id: string; system_key: string }>>(
+      await client.from("habits").select("id, system_key").eq("user_id", userId).in("system_key", unresolvedKeys.map((key) => digitalSystemKeys[key as keyof DigitalWellbeing])),
+    ) ?? [];
+    for (const row of existing) {
+      const key = Object.entries(digitalSystemKeys).find(([, systemKey]) => systemKey === row.system_key)?.[0];
+      if (key) resolvedIds[key] = row.id;
+    }
+  }
+  const missingKeys = unresolvedKeys.filter((key) => !resolvedIds[key]);
+  if (missingKeys.length) {
+    const inserted = unwrap<Array<{ id: string; system_key: string }>>(
+      await client.from("habits").insert(missingKeys.map((key) => ({
+        user_id: userId,
+        title: digitalDefinitions[key as keyof typeof digitalDefinitions].title,
+        habit_type: "habit",
+        system_key: digitalSystemKeys[key as keyof DigitalWellbeing],
+        frequency: { type: "daily" },
+        target_amount: 0,
+        unit: "min",
+        active: true,
+        xp_reward: 0,
+      }))).select("id, system_key"),
+    ) ?? [];
+    for (const row of inserted) {
+      const key = row.system_key === "screen_time" ? "screenTimeMinutes"
+        : row.system_key === "social_media" ? "socialMediaMinutes"
+          : row.system_key === "short_video" ? "shortVideoMinutes"
+            : row.system_key === "gaming" ? "gamingMinutes"
+              : row.system_key === "intentional_leisure" ? "intentionalLeisureMinutes"
+                : "stimulationFastMinutes";
+      resolvedIds[key] = row.id;
+    }
+  }
   const rows = Object.entries(values)
     .filter(([, value]) => value !== null)
     .map(([key, value]) => ({
       user_id: userId,
-      habit_id: habitIds[key],
+      habit_id: resolvedIds[key],
       log_date: localDate(),
       amount: value,
       completed: true,
@@ -507,7 +572,7 @@ export async function createHabit(
     target_amount: input.targetAmount,
     unit: input.unit,
     active: true,
-    xp_reward: 5,
+    xp_reward: 0,
   }));
 }
 
@@ -550,13 +615,14 @@ export async function saveJournalEntry(
   body: string,
   mood: number | null,
 ) {
-  unwrap(await client.from("reviews").upsert({
+  unwrap(await client.from("journal_entries").insert({
     user_id: userId,
-    review_type: "daily",
-    review_date: localDate(),
-    lessons: body,
+    entry_type: "reflection",
+    entry_date: localDate(),
+    content: body,
     mood,
-  }, { onConflict: "user_id,review_type,review_date" }));
+    created_via: "web",
+  }));
 }
 
 export async function saveStudySession(
@@ -572,21 +638,143 @@ export async function saveStudySession(
     study_mode: input.mode,
     notes: input.notes || null,
   }));
-  const xp = Math.max(5, Math.round(input.durationMinutes / 5)) + (input.mode === "simulation" ? 15 : input.mode === "independent" ? 8 : 0);
   const existing = unwrap<SkillRow[]>(
-    await client.from("skills").select("id, name, current_xp").eq("user_id", userId).eq("name", input.skillName),
+    await client.from("skills").select("id, name, current_xp, mastery_percent").eq("user_id", userId).eq("name", input.skillName),
   )?.[0];
   let skillId = existing?.id;
-  if (existing) {
-    unwrap(await client.from("skills").update({ current_xp: existing.current_xp + xp }).eq("id", existing.id));
-  } else {
+  if (!skillId) {
     const inserted = unwrap<SkillRow[]>(
-      await client.from("skills").insert({ user_id: userId, name: input.skillName, level: 1, current_xp: xp, next_level_xp: 100 }).select("id, name, current_xp"),
+      await client.from("skills").insert({ user_id: userId, name: input.skillName, current_xp: 0 }).select("id, name, current_xp, mastery_percent"),
     );
     skillId = inserted?.[0]?.id;
   }
   if (skillId) {
-    unwrap(await client.from("skill_evidence").insert({ user_id: userId, skill_id: skillId, description: input.notes || `${input.durationMinutes} min de práctica`, xp_awarded: xp }));
-    unwrap(await client.from("xp_transactions").insert({ user_id: userId, skill_id: skillId, amount: xp, reason: `Sesión de ${input.skillName}`, source_type: "study_session" }));
+    unwrap(await client.from("skill_evidence").insert({
+      user_id: userId,
+      skill_id: skillId,
+      description: input.notes || `${input.durationMinutes} min de práctica reportada`,
+      xp_awarded: 0,
+    }));
+  }
+}
+
+export async function saveMealLog(
+  client: SupabaseClient,
+  userId: string,
+  input: { mealType: string; description: string; observation: string },
+) {
+  unwrap(await client.from("meal_logs").insert({
+    user_id: userId,
+    meal_type: input.mealType,
+    description: input.description.trim(),
+    observation: input.observation.trim() || null,
+  }));
+}
+
+export async function saveActivityReport(
+  client: SupabaseClient,
+  userId: string,
+  input: { description: string; category: string; durationMinutes: number | null; result: string },
+) {
+  unwrap(await client.from("activity_reports").insert({
+    user_id: userId,
+    description: input.description.trim(),
+    category: input.category,
+    duration_minutes: input.durationMinutes,
+    result: input.result.trim() || null,
+    created_via: "web",
+  }));
+}
+
+export async function completeOnboarding(
+  client: SupabaseClient,
+  userId: string,
+  input: {
+    purpose: string;
+    nonNegotiables: HabitKey[];
+    subjects: string[];
+    firstTask: string;
+    startDate: string;
+    body: Omit<BodyMeasurement, "recordedOn"> | null;
+    screens: DigitalWellbeing | null;
+  },
+) {
+  if (input.nonNegotiables.length > 3) {
+    throw new Error("Puedes comenzar con un máximo de tres no negociables.");
+  }
+  const endDate = new Date(`${input.startDate}T12:00:00`);
+  endDate.setDate(endDate.getDate() + 55);
+  const endDateValue = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(endDate);
+
+  unwrap(await client.from("profiles").update({
+    purpose: input.purpose.trim() || null,
+    onboarding_completed: true,
+    onboarding_completed_at: new Date().toISOString(),
+  }).eq("user_id", userId));
+
+  const seasonRows = unwrap<SeasonRow[]>(
+    await client.from("seasons").select("id, name, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1),
+  ) ?? [];
+  if (seasonRows[0]) {
+    unwrap(await client.from("seasons").update({
+      status: "active",
+      start_date: input.startDate,
+      end_date: endDateValue,
+    }).eq("id", seasonRows[0].id));
+  } else {
+    unwrap(await client.from("seasons").insert({
+      user_id: userId,
+      name: "Temporada 1",
+      description: "Construir disciplina, avanzar en Ciencia de Datos y mejorar la salud.",
+      start_date: input.startDate,
+      end_date: endDateValue,
+      status: "active",
+    }));
+  }
+
+  unwrap(await client.from("habits").update({ active: false }).eq("user_id", userId).eq("habit_type", "non_negotiable"));
+  for (const key of input.nonNegotiables) {
+    const definition = habitDefinitions[key];
+    const existing = unwrap<Array<{ id: string }>>(
+      await client.from("habits").select("id").eq("user_id", userId).eq("system_key", definition.systemKey).limit(1),
+    )?.[0];
+    if (existing) {
+      unwrap(await client.from("habits").update({ active: true, habit_type: "non_negotiable" }).eq("id", existing.id));
+    } else {
+      unwrap(await client.from("habits").insert({
+        user_id: userId,
+        title: definition.title,
+        habit_type: "non_negotiable",
+        system_key: definition.systemKey,
+        frequency: { type: "daily" },
+        target_amount: 1,
+        unit: definition.unit,
+        active: true,
+        xp_reward: 0,
+      }));
+    }
+  }
+
+  for (const subjectName of input.subjects.filter(Boolean)) {
+    await resolveSubject(client, userId, subjectName);
+  }
+  if (input.firstTask.trim()) {
+    await createPlannerItem(client, userId, {
+      title: input.firstTask.trim(),
+      subject: input.subjects[0] || "General",
+      dueDate: null,
+      type: "Tarea",
+    });
+  }
+  if (input.body && Object.values(input.body).some((value) => value !== null)) {
+    await saveBodyMeasurement(client, userId, input.body);
+  }
+  if (input.screens && Object.values(input.screens).some((value) => value !== null)) {
+    await saveDigitalWellbeing(client, userId, {}, input.screens);
   }
 }

@@ -11,6 +11,7 @@ import {
   Droplets,
   Dumbbell,
   Eye,
+  Settings2,
   FlagTriangleRight,
   Gamepad2,
   House,
@@ -28,7 +29,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AuthScreen } from "@/components/auth-screen";
+import { SeasonOnboarding, type OnboardingInput } from "@/components/season-onboarding";
 import {
+  completeOnboarding,
   createGoal,
   createHabit,
   createPlannerItem,
@@ -36,6 +39,8 @@ import {
   saveBodyMeasurement,
   saveDigitalWellbeing,
   saveJournalEntry,
+  saveMealLog,
+  saveActivityReport,
   saveStudySession,
   setHabitCheckin,
   setPlannerItemCompleted,
@@ -53,7 +58,10 @@ import type {
   HabitOverview,
   HabitState,
   JournalEntry,
+  MealLog,
   MissionStatus,
+  ProfileSettings,
+  SeasonInfo,
   Skill,
   StoredSkill,
   SubjectSummary,
@@ -69,14 +77,14 @@ const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "goals", label: "Metas", icon: Target },
   { id: "habits", label: "Hábitos", icon: Repeat2 },
   { id: "nutrition", label: "Nutrición", icon: Utensils },
-  { id: "dopamine", label: "Dopamina", icon: BrainCircuit },
+  { id: "dopamine", label: "Atención", icon: BrainCircuit },
   { id: "journal", label: "Diario", icon: BookOpenText },
 ];
 
 const minimumItems: { key: HabitKey; icon: LucideIcon; title: string; detail: string }[] = [
-  { key: "prayer", icon: Sparkles, title: "Oración", detail: "10 minutos" },
+  { key: "prayer", icon: Sparkles, title: "Oración", detail: "Práctica breve" },
   { key: "hygiene", icon: Droplets, title: "Higiene", detail: "Rutina completa" },
-  { key: "movement", icon: Dumbbell, title: "Movimiento", detail: "20 minutos" },
+  { key: "movement", icon: Dumbbell, title: "Movimiento", detail: "Movimiento elegido" },
   { key: "planning", icon: ListChecks, title: "Plan del día", detail: "Revisar pendientes" },
   { key: "sleep", icon: MoonStar, title: "Descanso", detail: "Dormir a tiempo" },
 ];
@@ -404,7 +412,7 @@ function SkillCard({
   selected?: boolean;
   onSelect: () => void;
 }) {
-  const progress = (skill.xp / skill.next) * 100;
+  const hasMastery = skill.mastery !== null && skill.mastery !== undefined;
 
   return (
     <button
@@ -413,7 +421,7 @@ function SkillCard({
     >
       <div className="skill-card__head">
         <span className="skill-level" style={{ borderColor: color, color }}>
-          {skill.level}
+          {hasMastery ? `${Math.round(skill.mastery ?? 0)}%` : "—"}
         </span>
         <span>
           <strong>{skill.name}</strong>
@@ -422,10 +430,10 @@ function SkillCard({
         <i>→</i>
       </div>
       <div className="skill-xp">
-        <span>{skill.xp} / {skill.next} XP</span>
-        <span>Nivel {skill.level + 1}</span>
+        <span>{skill.xp} XP de esfuerzo</span>
+        <span>{hasMastery ? "Dominio reportado" : "Dominio por registrar"}</span>
       </div>
-      <ProgressBar value={progress} accent={color} small />
+      {hasMastery && <ProgressBar value={skill.mastery ?? 0} accent={color} small />}
     </button>
   );
 }
@@ -453,7 +461,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     sleep: false,
   });
   const [habitIds, setHabitIds] = useState<HabitIds>({});
-  const [modal, setModal] = useState<"quick" | "close" | "study" | "recovery" | null>(null);
+  const [modal, setModal] = useState<"quick" | "close" | "study" | "recovery" | "meal" | null>(null);
   const [toast, setToast] = useState("");
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
@@ -464,6 +472,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [goalData, setGoalData] = useState<GoalRecord[]>([]);
   const [bodyMeasurement, setBodyMeasurement] = useState<BodyMeasurement | null>(null);
   const [journalData, setJournalData] = useState<JournalEntry[]>([]);
+  const [mealData, setMealData] = useState<MealLog[]>([]);
+  const [profileSettings, setProfileSettings] = useState<ProfileSettings>({ onboardingCompleted: false, purpose: "", journalAiAllowed: false });
+  const [season, setSeason] = useState<SeasonInfo>({ id: null, name: "Temporada 1", status: "planned", startDate: null, endDate: null, week: null });
   const [habitData, setHabitData] = useState<HabitOverview[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[]>(Array(28).fill(0));
   const [digitalWellbeing, setDigitalWellbeing] = useState<DigitalWellbeing>({
@@ -484,11 +495,16 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [activeAttribute, setActiveAttribute] = useState("Ciencia de Datos");
   const [selectedSkillName, setSelectedSkillName] = useState(attributeGroups[0].skills[0].name);
   const [saving, setSaving] = useState(false);
-  const [duration, setDuration] = useState("30");
+  const [duration, setDuration] = useState("");
   const [numberValue, setNumberValue] = useState("");
   const [targetValue, setTargetValue] = useState("");
   const [unit, setUnit] = useState("");
-  const [mood, setMood] = useState("3");
+  const [mood, setMood] = useState("");
+  const [progressTab, setProgressTab] = useState<"general" | "career" | "skills">("general");
+  const [attentionTab, setAttentionTab] = useState<"overview" | "resources">("overview");
+  const [mealType, setMealType] = useState("lunch");
+  const [mealObservation, setMealObservation] = useState("");
+  const [activityCategory, setActivityCategory] = useState("general");
   const [studyMode, setStudyMode] = useState<"reading" | "guided" | "practice" | "independent" | "simulation">("practice");
   const [digitalForm, setDigitalForm] = useState({ screen: "", social: "", shortVideo: "", gaming: "", leisure: "", fast: "" });
   const [bodyForm, setBodyForm] = useState({ weight: "", waist: "", fat: "", energy: "", sleep: "" });
@@ -504,15 +520,23 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       const xp = stored?.xp ?? 0;
       return {
         ...skill,
-        level: Math.floor(xp / 100),
-        xp: xp % 100,
-        next: 100,
+        level: stored?.mastery == null ? null : Math.max(1, Math.ceil(stored.mastery / 20)),
+        mastery: stored?.mastery ?? null,
+        xp,
+        next: null,
         evidence: stored?.evidenceCount
           ? `${stored.evidenceCount} evidencia${stored.evidenceCount === 1 ? "" : "s"}`
           : "Sin evidencia registrada",
       };
     });
-    return { ...group, level: Math.floor(skills.reduce((sum, skill) => sum + skill.level, 0) / Math.max(1, skills.length)), skills };
+    const mastered = skills.filter((skill) => skill.mastery != null);
+    return {
+      ...group,
+      level: mastered.length
+        ? Math.round(mastered.reduce((sum, skill) => sum + (skill.mastery ?? 0), 0) / mastered.length)
+        : null,
+      skills,
+    };
   }), [storedSkills]);
 
   const activeGroup =
@@ -526,48 +550,55 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const nextExam = tasks.find(
     (task) => task.type === "Examen" && task.state !== "done",
   );
-  const globalLevel = Math.floor(totalXp / 500);
-  const levelXp = totalXp % 500;
   const completedThisWeek = habitData.reduce(
-    (sum, habit) => sum + habit.week.filter(Boolean).length,
+    (sum, habit) => sum + habit.week.filter((value) => value === true).length,
     0,
   );
-  const weeklyPossible = habitData.length * 7;
-  const weeklyRate = weeklyPossible
+  const weeklyPossible = habitData.reduce(
+    (sum, habit) => sum + habit.week.filter((value) => value !== null).length,
+    0,
+  );
+  const weeklyRate = weeklyPossible >= 7
     ? Math.round((completedThisWeek / weeklyPossible) * 100)
-    : 0;
-  const strongestHabit = [...habitData].sort((left, right) => right.streak - left.streak)[0];
-  const weakestHabit = [...habitData].sort((left, right) => left.rate - right.rate)[0];
+    : null;
+  const habitsWithRates = habitData.filter((habit) => habit.rate !== null);
+  const strongestHabit = [...habitsWithRates].sort((left, right) => (right.streak ?? 0) - (left.streak ?? 0))[0];
+  const weakestHabit = [...habitsWithRates].sort((left, right) => (left.rate ?? 0) - (right.rate ?? 0))[0];
   const recentDigitalDays = digitalHistory.slice(-7);
   const recordedDigitalDays = recentDigitalDays.filter((day) => day.screenTimeMinutes !== null);
   const averageDigital = (key: keyof DigitalWellbeing) => {
     const values = recentDigitalDays
       .map((day) => day[key])
       .filter((value): value is number => value !== null);
-    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+    return values.length >= 3 ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
   };
-  const rapidStimuliToday = (digitalWellbeing.socialMediaMinutes ?? 0) + (digitalWellbeing.shortVideoMinutes ?? 0);
-  const classifiedScreenToday = rapidStimuliToday + (digitalWellbeing.gamingMinutes ?? 0);
-  const unclassifiedScreenToday = Math.max(0, (digitalWellbeing.screenTimeMinutes ?? 0) - classifiedScreenToday);
+  const hasRapidStimuliToday = digitalWellbeing.socialMediaMinutes !== null || digitalWellbeing.shortVideoMinutes !== null;
+  const rapidStimuliToday = hasRapidStimuliToday ? (digitalWellbeing.socialMediaMinutes ?? 0) + (digitalWellbeing.shortVideoMinutes ?? 0) : null;
+  const classifiedScreenToday = rapidStimuliToday == null ? null : rapidStimuliToday + (digitalWellbeing.gamingMinutes ?? 0);
+  const unclassifiedScreenToday = digitalWellbeing.screenTimeMinutes == null || classifiedScreenToday == null ? null : Math.max(0, digitalWellbeing.screenTimeMinutes - classifiedScreenToday);
   const attentionControlToday = digitalWellbeing.screenTimeMinutes === null
     ? null
     : digitalWellbeing.screenTimeMinutes === 0
       ? 100
-      : Math.max(0, Math.min(100, Math.round(((digitalWellbeing.screenTimeMinutes - rapidStimuliToday) / digitalWellbeing.screenTimeMinutes) * 100)));
-  const digitalInsight = digitalWellbeing.screenTimeMinutes === null
+      : Math.max(0, Math.min(100, Math.round(((digitalWellbeing.screenTimeMinutes - (rapidStimuliToday ?? 0)) / digitalWellbeing.screenTimeMinutes) * 100)));
+  const digitalInsight = recordedDigitalDays.length < 3
     ? "Registra al menos tres días para descubrir cuándo el celular te ayuda y cuándo empieza a dirigir tu atención."
-    : rapidStimuliToday >= 90
+    : (rapidStimuliToday ?? 0) >= 90
       ? "Hoy los estímulos rápidos ocuparon una parte importante del día. Conviene proteger el siguiente bloque sin redes ni videos cortos."
-      : rapidStimuliToday > 0
+      : (rapidStimuliToday ?? 0) > 0
         ? "Ya tienes una línea base de estímulos rápidos. La meta no es cero pantalla: es que el uso sea elegido y no automático."
         : "Hoy no registraste redes ni videos cortos. Comprueba que el dato esté completo antes de sacar conclusiones.";
-  const realLifeStats = [
-    { name: "Disciplina", value: weeklyRate, detail: "Cumplimiento de hábitos y no negociables", change: weeklyPossible ? `${completedThisWeek} de ${weeklyPossible} esta semana` : "Sin registros", color: "#d3ac66" },
-    { name: "Salud física", value: Math.round(((habitData.find((habit) => habit.title === "Movimiento")?.rate ?? 0) + (habitData.find((habit) => habit.title === "Dormir a tiempo")?.rate ?? 0)) / 2), detail: "Movimiento y descanso registrados", change: bodyMeasurement ? "Línea base registrada" : "Sin línea base", color: "#b98275" },
-    { name: "Enfoque mental", value: 0, detail: "Se activará con sesiones de enfoque y varios días de pantallas", change: digitalWellbeing.screenTimeMinutes === null ? "Sin registro de hoy" : `${digitalWellbeing.screenTimeMinutes} min de celular`, color: "#8fa9d7" },
-    { name: "Avance de carrera", value: subjectData.length ? Math.round((subjectData.filter((subject) => subject.status === "passed").length / subjectData.length) * 100) : 0, detail: "Materias aprobadas sobre materias registradas", change: subjectData.length ? `${subjectData.filter((subject) => subject.status === "passed").length} de ${subjectData.length} materias` : "Añade tu pénsum", color: "#9a8cc2" },
-    { name: "Orden financiero", value: 0, detail: "Presupuesto, ahorro e ingresos", change: "Aún sin registros", color: "#c19b70" },
-    { name: "Equilibrio personal", value: habitData.find((habit) => habit.title === "Oración")?.rate ?? 0, detail: "Fe, descanso y ocio intencional", change: digitalWellbeing.intentionalLeisureMinutes === null ? "Sin registro de ocio" : `${digitalWellbeing.intentionalLeisureMinutes} min intencionales`, color: "#7f9eb8" },
+  const averageSocial = averageDigital("socialMediaMinutes");
+  const averageShortVideo = averageDigital("shortVideoMinutes");
+  const averageRapid = averageSocial == null || averageShortVideo == null ? null : averageSocial + averageShortVideo;
+  const physicalRates = [habitData.find((habit) => habit.title === "Movimiento")?.rate, habitData.find((habit) => habit.title === "Dormir a tiempo")?.rate].filter((value): value is number => value != null);
+  const realLifeStats: Array<{ name: string; value: number | null; detail: string; change: string; color: string }> = [
+    { name: "Disciplina", value: weeklyRate, detail: "Últimos registros de hábitos y mínimos", change: weeklyRate == null ? "Aún no calculado" : `${completedThisWeek} de ${weeklyPossible} registros`, color: "#d3ac66" },
+    { name: "Salud física", value: physicalRates.length === 2 ? Math.round(physicalRates.reduce((sum, value) => sum + value, 0) / physicalRates.length) : null, detail: "Movimiento y descanso registrados", change: bodyMeasurement ? "Línea base registrada" : "Aún no calculado", color: "#b98275" },
+    { name: "Enfoque mental", value: recordedDigitalDays.length >= 7 ? attentionControlToday : null, detail: "Uso elegido y estímulos rápidos", change: recordedDigitalDays.length < 7 ? "Aún no calculado" : "Basado en los últimos 7 días", color: "#8fa9d7" },
+    { name: "Avance de carrera", value: subjectData.length ? Math.round((subjectData.filter((subject) => subject.status === "passed").length / subjectData.length) * 100) : null, detail: "Materias aprobadas sobre pénsum registrado", change: subjectData.length ? `${subjectData.filter((subject) => subject.status === "passed").length} de ${subjectData.length} materias` : "Pénsum por registrar", color: "#9a8cc2" },
+    { name: "Orden financiero", value: null, detail: "Presupuesto, ahorro e ingresos", change: "Aún no calculado", color: "#c19b70" },
+    { name: "Equilibrio personal", value: habitData.find((habit) => habit.title === "Oración")?.rate ?? null, detail: "Fe, descanso y ocio intencional", change: "Aún no calculado", color: "#7f9eb8" },
   ];
   const realBodyMetrics = [
     { label: "Peso", value: bodyMeasurement?.weightKg == null ? "Por registrar" : `${bodyMeasurement.weightKg} kg`, trend: "Línea base" },
@@ -579,9 +610,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const nutritionHabits = habitData.filter((habit) => nutritionPattern.test(habit.title));
   const nutritionGoals = goalData.filter((goal) => nutritionPattern.test(`${goal.title} ${goal.reason ?? ""}`));
   const nutritionConsistency = nutritionHabits.length
-    ? Math.round(nutritionHabits.reduce((sum, habit) => sum + habit.rate, 0) / nutritionHabits.length)
+    && nutritionHabits.every((habit) => habit.rate != null)
+    ? Math.round(nutritionHabits.reduce((sum, habit) => sum + (habit.rate ?? 0), 0) / nutritionHabits.length)
     : null;
-  const strongestNutritionHabit = [...nutritionHabits].sort((left, right) => right.streak - left.streak)[0];
+  const strongestNutritionHabit = [...nutritionHabits].sort((left, right) => (right.streak ?? 0) - (left.streak ?? 0))[0];
   const plannerDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() + index);
@@ -595,6 +627,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       active: index === 0,
     };
   }), [tasks]);
+  const activeMinimumItems = minimumItems.filter((item) => Boolean(habitIds[item.key]));
+  const seasonLabel = season.status === "active" && season.week
+    ? `${season.name} · Semana ${season.week}`
+    : "En preparación";
 
   function applyDashboardData(data: DashboardData) {
     setTasks(data.tasks);
@@ -604,6 +640,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     setGoalData(data.goals);
     setBodyMeasurement(data.bodyMeasurement);
     setJournalData(data.journalEntries);
+    setMealData(data.meals);
+    setProfileSettings(data.profile);
+    setSeason(data.season);
     setHabitData(data.habitRows);
     setHeatmapData(data.heatmap);
     setDigitalWellbeing(data.digitalWellbeing);
@@ -618,6 +657,18 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     if (!userId) return;
     const data = await loadDashboardData(getSupabaseBrowserClient(), userId);
     applyDashboardData(data);
+  }
+
+  async function startSeason(input: OnboardingInput) {
+    if (!userId) throw new Error("Tu sesión expiró. Vuelve a entrar.");
+    setSaving(true);
+    try {
+      await completeOnboarding(getSupabaseBrowserClient(), userId, input);
+      await refreshData();
+      notify("Temporada 1 iniciada.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   useEffect(() => {
@@ -689,7 +740,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   function startMission() {
     if (missionStatus === "pending") {
       setMissionStatus("active");
-      notify("Misión iniciada. Enfoque total durante 45 minutos.");
+      notify("Misión iniciada. Registra el tiempo real cuando termines.");
     } else if (missionStatus === "active") {
       setModal("study");
     } else {
@@ -762,6 +813,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       notify("Escribe una descripción breve antes de guardar.");
       return;
     }
+    if (entryType === "Sesión de estudio" && (!duration || Number(duration) <= 0)) {
+      notify("Indica cuánto tiempo estudiaste.");
+      return;
+    }
 
     const client = getSupabaseBrowserClient();
     const numberOrNull = (value: string) => value === "" ? null : Number(value);
@@ -778,7 +833,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         await saveStudySession(client, userId, {
           subject: taskSubject.trim() || "General",
           skillName: selectedSkill.name,
-          durationMinutes: Math.max(1, Number(duration) || 0),
+          durationMinutes: Number(duration),
           mode: studyMode,
           notes: note.trim(),
         });
@@ -816,6 +871,13 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         });
       } else if (entryType === "Diario") {
         await saveJournalEntry(client, userId, note.trim(), Number(mood) || null);
+      } else if (entryType === "Actividad") {
+        await saveActivityReport(client, userId, {
+          description: note.trim(),
+          category: activityCategory,
+          durationMinutes: duration ? Number(duration) : null,
+          result: "",
+        });
       }
       await refreshData();
       setModal(null);
@@ -825,9 +887,38 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       setNumberValue("");
       setTargetValue("");
       setUnit("");
+      setDuration("");
       notify(`${entryType} guardado correctamente.`);
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveMeal() {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
+    if (!note.trim()) {
+      notify("Describe brevemente lo que comiste.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveMealLog(getSupabaseBrowserClient(), userId, {
+        mealType,
+        description: note,
+        observation: mealObservation,
+      });
+      await refreshData();
+      setNote("");
+      setMealObservation("");
+      setModal(null);
+      notify("Alimentación registrada sin contar calorías.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo guardar la comida.");
     } finally {
       setSaving(false);
     }
@@ -893,12 +984,16 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       return;
     }
     if (!primaryTask) return;
+    if (!duration || Number(duration) <= 0) {
+      notify("Indica la duración real antes de completar la misión.");
+      return;
+    }
     setSaving(true);
     try {
       await saveStudySession(getSupabaseBrowserClient(), userId, {
         subject: primaryTask.subject,
         skillName: selectedSkill.name,
-        durationMinutes: 45,
+        durationMinutes: Number(duration),
         mode: index === 3 ? "simulation" : index === 2 ? "independent" : index === 0 ? "guided" : "practice",
         notes: result,
       });
@@ -906,7 +1001,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       await refreshData();
       setMissionStatus("done");
       setModal(null);
-      notify("Misión y evidencia guardadas.");
+      setDuration("");
+      notify("Misión y práctica reportada guardadas.");
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo cerrar la misión.");
     } finally {
@@ -921,7 +1017,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     }
     setSaving(true);
     try {
-      const summary = note.trim() || `Cierre del día: ${completedHabits} de 5 no negociables.`;
+      const summary = note.trim() || `Cierre del día: ${completedHabits} de ${activeMinimumItems.length} no negociables.`;
       await saveJournalEntry(getSupabaseBrowserClient(), userId, summary, Number(mood) || null);
       await refreshData();
       setModal(null);
@@ -943,7 +1039,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     try {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
       await createPlannerItem(getSupabaseBrowserClient(), userId, {
-        title: "Plan mínimo: oración, higiene, 20 min de estudio y 10 min de movimiento",
+        title: activeMinimumItems.length
+          ? `Retomar con un mínimo: ${activeMinimumItems.map((item) => item.title).join(", ")}`
+          : "Elegir una acción pequeña para retomar el ritmo",
         subject: "Recuperación",
         dueDate: today,
         type: "Tarea",
@@ -969,6 +1067,17 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
 
   if (!reviewMode && authStatus !== "signed_in") {
     return <AuthScreen loading={authStatus === "checking"} />;
+  }
+
+  if (!reviewMode && dataStatus === "ready" && !profileSettings.onboardingCompleted) {
+    return (
+      <SeasonOnboarding
+        displayName={userLabel}
+        saving={saving}
+        onStart={startSeason}
+        onSignOut={signOut}
+      />
+    );
   }
 
   return (
@@ -1006,18 +1115,19 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           </div>
           <p>La ruta actual</p>
           <strong>El despertar</strong>
-          <small>Semana 1 de 8</small>
+          <small>{season.status === "active" && season.week ? `Semana ${season.week} de 8` : "En preparación"}</small>
         </div>
 
-        <div className="profile-chip">
+        <button className={view === "system" ? "profile-chip profile-chip--active" : "profile-chip"} type="button" onClick={() => setView("system")} aria-label="Abrir Sistema y perfil">
           <span className="profile-chip__avatar">
             {(reviewMode ? "R" : userLabel.charAt(0)).toUpperCase()}
           </span>
           <div>
             <strong>{reviewMode ? "Revisión" : userLabel}</strong>
-            <small>{reviewMode ? "Solo lectura" : `Nivel ${globalLevel} · Inicio real`}</small>
+            <small>{reviewMode ? "Solo lectura" : "Sistema y perfil"}</small>
           </div>
-        </div>
+          <Settings2 aria-hidden="true" size={16} />
+        </button>
       </aside>
 
       <section className="workspace">
@@ -1040,17 +1150,19 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               {view === "nutrition" && "Nutrición"}
               {view === "dopamine" && "Atención"}
               {view === "journal" && "Diario"}
+              {view === "system" && "Sistema"}
             </h1>
           </div>
           <div className="player-status">
             {dataStatus === "error" && <span className="data-status data-status--error">Sin conexión</span>}
-            <div className="season-pill">Temporada 1 · Semana 1</div>
-            <div className="level-badge">{globalLevel}</div>
+            <div className="season-pill">{seasonLabel}</div>
+            <div className="level-badge">◇</div>
             <div className="xp-summary">
-              <span>Nivel global</span>
-              <strong>{levelXp} / 500 XP</strong>
-              <ProgressBar value={(levelXp / 500) * 100} accent="var(--gold)" />
+              <span>XP de esfuerzo</span>
+              <strong>{totalXp} XP</strong>
+              <small>Niveles por definir</small>
             </div>
+            <button className="sign-out system-shortcut" onClick={() => setView("system")} type="button" aria-label="Abrir Sistema"><Settings2 size={16} /></button>
             <button className="sign-out" onClick={signOut} type="button">
               {reviewMode ? "Cerrar" : "Salir"}
             </button>
@@ -1081,10 +1193,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     ? `Vence: ${formatTaskDate(primaryTask.dueDate, primaryTask.state)}. Al terminar, registra el resultado.`
                     : "Añade una tarea o examen y aparecerá aquí como tu siguiente movimiento."}
                 </p>
-                <div className="mission-meta">
-                  <span><Clock3 aria-hidden="true" /> <strong>45 min</strong></span>
-                  <span><Sparkles aria-hidden="true" /> <strong>XP según evidencia</strong></span>
-                </div>
+                {primaryTask && <div className="mission-meta">
+                  <span><Clock3 aria-hidden="true" /> <strong>Duración por registrar</strong></span>
+                  <span><Sparkles aria-hidden="true" /> <strong>Reporte honesto</strong></span>
+                </div>}
                 <button
                   className={`primary-action ${
                     missionStatus === "active" ? "primary-action--active" : ""
@@ -1118,11 +1230,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                       ? `${nextExam.subject} · ${formatTaskDate(nextExam.dueDate, nextExam.state)}`
                       : "Añádelo en el Planificador"}
                   </p>
-                  <div className="preparation-row">
-                    <span>Preparación comprobada</span>
-                    <strong>0 de 5 fases</strong>
-                  </div>
-                  <ProgressBar value={0} accent="var(--gold)" small />
+                  {nextExam ? <><div className="preparation-row"><span>Ruta de preparación</span><strong>0 de 5 fases registradas</strong></div><ProgressBar value={0} accent="var(--gold)" small /></> : <div className="uncalculated-bar"><span>Sin ruta de preparación</span></div>}
                 </div>
               </section>
 
@@ -1132,10 +1240,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <p className="eyebrow">Identidad protegida</p>
                   <h3>No negociables de hoy</h3>
                   </div>
-                  <span>{completedHabits}/5</span>
+                  <span>{completedHabits}/{activeMinimumItems.length}</span>
                 </div>
                 <div className="minimum-list">
-                  {minimumItems.map(({ key, icon: Icon, title, detail }) => {
+                  {activeMinimumItems.map(({ key, icon: Icon, title, detail }) => {
                     const done = habits[key];
                     return (
                       <button
@@ -1270,7 +1378,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <h3>{subject.name}</h3>
                   <p>{subject.nextItem} · {subject.pendingItems} pendientes</p>
                   <div className="subject-card__progress">
-                    <span>Dominio comprobado</span>
+                    <span>Preparación registrada</span>
                     <strong>{subject.progress}%</strong>
                   </div>
                   <ProgressBar value={subject.progress} accent="#8fa9d7" small />
@@ -1327,20 +1435,27 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 </p>
               </div>
               <div className="overview-level">
-                <span>{globalLevel}</span>
+                <span>{totalXp}</span>
                 <div>
-                  <small>Nivel global</small>
+                  <small>XP de esfuerzo registrado</small>
                   <strong>{storedSkills.length} habilidades con evidencia</strong>
                 </div>
               </div>
             </section>
 
+            <div className="progress-tabs" role="tablist" aria-label="Secciones de progreso">
+              <button className={progressTab === "general" ? "is-active" : ""} onClick={() => setProgressTab("general")}>General</button>
+              <button className={progressTab === "career" ? "is-active" : ""} onClick={() => setProgressTab("career")}>Carrera</button>
+              <button className={progressTab === "skills" ? "is-active" : ""} onClick={() => setProgressTab("skills")}>Habilidades</button>
+            </div>
+
+            {progressTab === "general" && <>
             <section className="purpose-card panel">
               <span className="purpose-card__compass">✦</span>
               <div>
                 <p className="eyebrow">Disciplina</p>
                 <h3>La disciplina de hoy evita el arrepentimiento de mañana.</h3>
-                <p>Crecer con Dios · dominar Ciencia de Datos · vivir con dominio propio.</p>
+                <p>{profileSettings.purpose || "Tu brújula personal está por definir en Sistema."}</p>
               </div>
             </section>
 
@@ -1350,7 +1465,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <p className="eyebrow">Barras generales</p>
                   <h3>Estado de tu vida</h3>
                 </div>
-                <span>Esta semana</span>
+                <span>Últimos 28 días disponibles</span>
               </div>
               <p className="section-copy">
                 Estas barras se calcularán con hábitos, tareas, sesiones y registros
@@ -1364,16 +1479,17 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                         <strong>{stat.name}</strong>
                         <small>{stat.detail}</small>
                       </div>
-                      <span style={{ color: stat.color }}>{stat.value}</span>
+                      <span style={{ color: stat.color }}>{stat.value == null ? "—" : `${stat.value}%`}</span>
                     </div>
-                    <ProgressBar value={stat.value} accent={stat.color} />
+                    {stat.value == null ? <div className="uncalculated-bar"><span>Aún no calculado</span></div> : <ProgressBar value={stat.value} accent={stat.color} />}
                     <p>{stat.change}</p>
                   </article>
                 ))}
               </div>
             </section>
+            </>}
 
-            <section className="career-progress panel">
+            {progressTab === "career" && <section className="career-progress panel">
               <div className="career-progress__main">
                 <p className="eyebrow">Objetivo profesional</p>
                 <h3>Licenciatura en Ciencia de Datos</h3>
@@ -1384,10 +1500,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <div className="degree-bar">
                   <div>
                     <span>Avance del pénsum</span>
-                    <strong>{realLifeStats[3].value}%</strong>
+                    <strong>{realLifeStats[3].value == null ? "Sin datos" : `${realLifeStats[3].value}%`}</strong>
                   </div>
-                  <ProgressBar value={realLifeStats[3].value} accent="#9a8cc2" />
-                  <small>{subjectData.filter((subject) => subject.status === "passed").length} aprobadas · {subjectData.filter((subject) => subject.status === "studying").length} cursando · {subjectData.filter((subject) => subject.status === "pending").length} pendientes</small>
+                  {realLifeStats[3].value != null && <ProgressBar value={realLifeStats[3].value} accent="#9a8cc2" />}
+                  <small>{subjectData.length ? `${subjectData.filter((subject) => subject.status === "passed").length} aprobadas · ${subjectData.filter((subject) => subject.status === "studying").length} cursando · ${subjectData.filter((subject) => subject.status === "pending").length} pendientes` : "Registra tu pénsum para calcular el avance académico."}</small>
                 </div>
               </div>
               <div className="term-card">
@@ -1397,8 +1513,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <div><small>Con pendientes</small><b className="warning-text">{subjectData.filter((subject) => subject.status === "studying" && subject.pendingItems > 0).length}</b></div>
                 <div><small>Próxima evaluación</small><b>{nextExam ? formatTaskDate(nextExam.dueDate, nextExam.state) : "Ninguna"}</b></div>
               </div>
-            </section>
+            </section>}
 
+            {progressTab === "skills" && <>
             <div className="subsection-title">
               <div>
                 <p className="eyebrow">Subbarras entrenables</p>
@@ -1426,7 +1543,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     <small>Camino</small>
                     <strong>{group.name}</strong>
                   </div>
-                  <i>Nv. {group.level}</i>
+                  <i>{group.level == null ? "Sin datos" : `${group.level}%`}</i>
                 </button>
               ))}
             </section>
@@ -1436,7 +1553,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <div className="skill-group__head">
                   <div>
                     <p className="eyebrow" style={{ color: activeGroup.color }}>
-                      Nivel {activeGroup.level}
+                      {activeGroup.level == null ? "Dominio por registrar" : `Dominio medio ${activeGroup.level}%`}
                     </p>
                     <h3>{activeGroup.name}</h3>
                     <p>{activeGroup.description}</p>
@@ -1465,22 +1582,19 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <p className="eyebrow">Habilidad seleccionada</p>
                 <div className="skill-detail__title">
                   <span style={{ borderColor: activeGroup.color, color: activeGroup.color }}>
-                    {selectedSkill.level}
+                    {selectedSkill.mastery == null ? "—" : `${Math.round(selectedSkill.mastery)}%`}
                   </span>
                   <div>
                     <h3>{selectedSkill.name}</h3>
-                    <small>Nivel {selectedSkill.level}</small>
+                    <small>{selectedSkill.mastery == null ? "Dominio por registrar" : "Dominio reportado"}</small>
                   </div>
                 </div>
                 <div className="skill-detail__xp">
                   <div>
-                    <span>Camino al nivel {selectedSkill.level + 1}</span>
-                    <strong>{selectedSkill.xp} / {selectedSkill.next} XP</strong>
+                    <span>Esfuerzo acumulado</span>
+                    <strong>{selectedSkill.xp} XP</strong>
                   </div>
-                  <ProgressBar
-                    value={(selectedSkill.xp / selectedSkill.next) * 100}
-                    accent={activeGroup.color}
-                  />
+                  {selectedSkill.mastery == null ? <div className="uncalculated-bar"><span>Aún no calculado</span></div> : <ProgressBar value={selectedSkill.mastery} accent={activeGroup.color} />}
                 </div>
                 <div className="evidence-box">
                   <small>Evidencia registrada</small>
@@ -1506,15 +1620,15 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               <div className="measurement__icon">?</div>
               <div>
                 <p className="eyebrow">Cómo se calcula</p>
-                <h3>Nivel por evidencia, no por sensación.</h3>
+                <h3>El esfuerzo no es lo mismo que el dominio.</h3>
                 <p>
-                  Una sesión entrega XP por constancia; un ejercicio independiente,
-                  proyecto o examen aporta evidencia de dominio. Las barras generales
-                  resumen comportamiento real; las habilidades conservan su propio
-                  nivel. La fe y el propósito se respetan como prácticas personales.
+                  Las prácticas reportadas construyen historial de esfuerzo. El dominio
+                  evoluciona gradualmente con ejercicios, proyectos, simulacros y resultados
+                  que comuniques. No necesitas adjuntar comprobantes.
                 </p>
               </div>
             </section>
+            </>}
           </div>
         )}
 
@@ -1537,7 +1651,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <div className="goal-card__top">
                     <span style={{ color: "#d3ac66" }}>◎</span>
                     <small>Meta real</small>
-                    <b>0%</b>
+                    <b>Por calcular</b>
                   </div>
                   <h3>{goal.title}</h3>
                   <div className="goal-values">
@@ -1545,7 +1659,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     <span>→</span>
                     <div><small>Resultado</small><strong>{goal.targetValue ?? "Por definir"} {goal.targetValue == null ? "" : goal.unit}</strong></div>
                   </div>
-                  <ProgressBar value={0} accent="#d3ac66" />
+                  <div className="uncalculated-bar"><span>Registra avances para construir la tendencia</span></div>
                   <div className="goal-next"><small>Razón</small><p>{goal.reason || "Añade evidencia para construir el plan y medir el avance."}</p></div>
                   <footer>
                     <span>◷ {goal.targetDate ?? "Sin fecha"}</span>
@@ -1568,7 +1682,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <h3>Composición corporal sin convertir tu cuerpo en una nota.</h3>
                 <p>
                   La apariencia se observa con resultados controlables: medidas, postura,
-                  cuidado, fuerza y constancia. El 12% primero necesita una línea base y un plazo saludable.
+                  cuidado, fuerza y constancia. Si eliges 12% como meta futura, primero necesita una línea base, recuperación suficiente y un plazo responsable.
                 </p>
                 <button className="ghost-action" onClick={() => { setEntryType("Medición"); setModal("quick"); }}>
                   + Registrar medición
@@ -1594,21 +1708,21 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <p className="eyebrow">Temporada 1 · 8 semanas</p>
                 <div className="season-card__title">
                   <div><h3>El despertar</h3><p>Recuperar dominio en estudios, cuerpo y rutina.</p></div>
-                  <span>0/8</span>
+                  <span>{season.week ? `${season.week}/8` : "En preparación"}</span>
                 </div>
-                <ProgressBar value={0} accent="var(--gold)" />
+                {season.week && <ProgressBar value={(season.week / 8) * 100} accent="var(--gold)" />}
                 <div className="season-bosses">
                   <div><span>Jefe académico</span><strong>{nextExam?.title ?? "Por definir"}</strong><small>{nextExam ? formatTaskDate(nextExam.dueDate, nextExam.state) : "Sin examen"}</small></div>
-                  <div><span>Desafío físico</span><strong>Por definir</strong><small>0 completados</small></div>
+                  <div><span>Desafío físico</span><strong>Por definir</strong><small>Sin resultado registrado</small></div>
                   <div><span>Desafío de carácter</span><strong>7 cierres diarios</strong><small>{journalData.length} registrados</small></div>
                 </div>
               </article>
               <article className="rewards-card panel">
                 <div className="rewards-card__head"><div><p className="eyebrow">Recompensas</p><h3>Botín ganado</h3></div><span>◇ {coins}</span></div>
                 <div className="reward-list">
-                  <button disabled><span>☕</span><div><strong>Salida o comida especial</strong><small>400 monedas</small></div><i>Bloqueada</i></button>
-                  <button disabled><span>✦</span><div><strong>Título: Aprendiz constante</strong><small>Racha de 7 días</small></div><i>Bloqueado</i></button>
-                  <button disabled><span>◈</span><div><strong>Noche libre sin culpa</strong><small>Cierre semanal ≥ 80%</small></div><i>Bloqueada</i></button>
+                  <button disabled><span>☕</span><div><strong>Salida o comida especial</strong><small>Condición por definir contigo</small></div><i>Pendiente</i></button>
+                  <button disabled><span>✦</span><div><strong>Título: Aprendiz constante</strong><small>Condición por definir contigo</small></div><i>Pendiente</i></button>
+                  <button disabled><span>◈</span><div><strong>Ocio especial planificado</strong><small>Condición por definir contigo</small></div><i>Pendiente</i></button>
                 </div>
               </article>
             </section>
@@ -1616,7 +1730,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             <section className="review-recovery">
               <article className="review-card panel">
                 <div><p className="eyebrow">Revisión semanal · domingo</p><h3>Mirar, aprender y ajustar.</h3><p>Compara metas, hábitos, energía y resultados. Después elige una mejora concreta.</p></div>
-                <div className="review-score"><span>{weeklyRate}%</span><small>semana actual</small></div>
+                <div className="review-score"><span>{weeklyRate == null ? "—" : `${weeklyRate}%`}</span><small>{weeklyRate == null ? "Sin datos suficientes" : "semana actual"}</small></div>
                 <button onClick={() => { setView("journal"); setEntryType("Diario"); }}>Iniciar revisión →</button>
               </article>
               <article className="recovery-card panel">
@@ -1640,7 +1754,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 </p>
               </div>
               <div className="habit-score">
-                <span>{weeklyRate}%</span>
+                <span>{weeklyRate == null ? "—" : `${weeklyRate}%`}</span>
                 <small>cumplimiento semanal</small>
                 <b>{weeklyPossible ? `${completedThisWeek} registros` : "Sin datos"}</b>
               </div>
@@ -1649,18 +1763,18 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             <section className="habit-summary-grid">
               <article className="habit-kpi panel">
                 <small>Racha más fuerte</small>
-                <strong>{strongestHabit?.streak ?? 0} días</strong>
+                <strong>{strongestHabit?.streak == null ? "Sin datos" : `${strongestHabit.streak} días`}</strong>
                 <span>{strongestHabit?.title ?? "Sin registros"}</span>
               </article>
               <article className="habit-kpi panel">
                 <small>Esta semana</small>
-                <strong>{completedThisWeek} / {weeklyPossible}</strong>
-                <span>registros cumplidos</span>
+                <strong>{weeklyPossible ? `${completedThisWeek} / ${weeklyPossible}` : "Sin datos"}</strong>
+                <span>{weeklyPossible ? "registros reportados" : "Empieza con un registro"}</span>
               </article>
               <article className="habit-kpi panel">
                 <small>Mayor oportunidad</small>
                 <strong>{weakestHabit?.title ?? "Sin datos"}</strong>
-                <span>{weakestHabit?.rate ?? 0}% en 28 días</span>
+                <span>{weakestHabit?.rate == null ? "Aún no calculado" : `${weakestHabit.rate}% en días registrados`}</span>
               </article>
               <article className="habit-kpi panel">
                 <small>Recuperaciones</small>
@@ -1682,7 +1796,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     <button disabled>3 meses</button>
                   </div>
                 </div>
-                <div className="bar-chart" aria-label="Tendencia de cumplimiento de hábitos">
+                {weeklyRate == null ? <div className="chart-empty"><strong>Aún no calculado</strong><small>Registra al menos siete oportunidades antes de mostrar porcentajes.</small></div> : <div className="bar-chart" aria-label="Tendencia de cumplimiento de hábitos">
                   {heatmapData.slice(-habitPeriod).map((count, index) => {
                     const value = habitData.length ? Math.round((count / habitData.length) * 100) : 0;
                     return (
@@ -1691,10 +1805,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                       <small>{index % 2 === 0 ? index + 1 : ""}</small>
                     </div>
                   );})}
-                </div>
+                </div>}
                 <div className="chart-note">
                   <span><i className="legend-dot" /> Cumplimiento</span>
-                  <strong>Promedio: {weeklyRate}%</strong>
+                  <strong>{weeklyRate == null ? "Promedio: sin datos" : `Promedio: ${weeklyRate}%`}</strong>
                 </div>
               </article>
 
@@ -1706,7 +1820,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   </div>
                   <span className="small-badge">Datos reales</span>
                 </div>
-                <div className="habit-heatmap" aria-label="Actividad de los últimos 28 días">
+                {habitData.some((habit) => habit.recordedDays > 0) ? <div className="habit-heatmap" aria-label="Actividad de los últimos 28 días">
                   {heatmapData.map((count, index) => {
                     const intensity = Math.min(3, count);
                     return (
@@ -1717,14 +1831,14 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                       onClick={() => notify(`Día ${index + 1}: ${count} hábitos cumplidos.`)}
                     />
                   );})}
-                </div>
-                <div className="heatmap-legend">
+                </div> : <div className="chart-empty"><strong>Sin datos</strong><small>El mapa aparecerá con tu primer registro.</small></div>}
+                {habitData.some((habit) => habit.recordedDays > 0) && <div className="heatmap-legend">
                   <span>Menos</span>
                   {[0, 1, 2, 3].map((level) => (
                     <i className={`heat-cell heat-cell--${level}`} key={level} />
                   ))}
                   <span>Más</span>
-                </div>
+                </div>}
                 <p>
                   El análisis aparecerá cuando existan suficientes registros. No se mostrarán conclusiones inventadas.
                 </p>
@@ -1743,12 +1857,13 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               <div className="non-negotiable-grid">
                 {habitData.filter((habit) => habit.habitType === "non_negotiable").map((item) => (
                   <article key={item.id}>
-                    <div><span>◆</span><strong>{item.title}</strong><b>{item.rate}%</b></div>
+                    <div><span>◆</span><strong>{item.title}</strong><b>{item.rate == null ? "—" : `${item.rate}%`}</b></div>
                     <small>Mínimo diario</small>
-                    <p>{item.streak ? `Racha actual: ${item.streak} días.` : "Todavía sin racha."}</p>
-                    <ProgressBar value={item.rate} accent={item.rate < 75 ? "#b98275" : "#d3ac66"} small />
+                    <p>{item.streak == null ? "Todavía sin datos." : `Racha actual: ${item.streak} días.`}</p>
+                    {item.rate == null ? <div className="uncalculated-bar"><span>Aún no calculado</span></div> : <ProgressBar value={item.rate} accent={item.rate < 75 ? "#b98275" : "#d3ac66"} small />}
                   </article>
                 ))}
+                {habitData.filter((habit) => habit.habitType === "non_negotiable").length === 0 && <div className="empty-inline"><strong>Sin no negociables activos</strong><small>Puedes elegir hasta tres desde Sistema.</small></div>}
               </div>
               <button className="minimum-recovery" onClick={() => setModal("recovery")}>
                 Configurar modo de día difícil <span>→</span>
@@ -1780,15 +1895,14 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <span>{habit.goal}</span>
                   <div className="week-dots" aria-label={`Últimos 7 días de ${habit.title}`}>
                     {habit.week.map((done, index) => (
-                      <i className={done ? "week-dot week-dot--done" : "week-dot"} key={index}>
-                        {done ? "✓" : ""}
+                      <i className={done === null ? "week-dot week-dot--unknown" : done ? "week-dot week-dot--done" : "week-dot"} key={index}>
+                        {done === true ? "✓" : done === false ? "·" : ""}
                       </i>
                     ))}
                   </div>
-                  <span><b>{habit.streak}</b> días</span>
+                  <span>{habit.streak == null ? "Sin datos" : <><b>{habit.streak}</b> días</>}</span>
                   <div className="rate-cell">
-                    <ProgressBar value={habit.rate} accent={habit.rate < 60 ? "#b98275" : "#8fa9d7"} small />
-                    <b>{habit.rate}%</b>
+                    {habit.rate == null ? <span>Aún no calculado</span> : <><ProgressBar value={habit.rate} accent={habit.rate < 60 ? "#b98275" : "#8fa9d7"} small /><b>{habit.rate}%</b></>}
                   </div>
                 </article>
               ))}
@@ -1815,7 +1929,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <p className="eyebrow">Nutrición</p>
                 <h2>Alimenta el progreso.</h2>
                 <p>Planifica, registra y descubre qué puedes sostener. Sin dietas inventadas ni días “perfectos”.</p>
-                <button className="secondary-action" onClick={() => prepareNutritionHabit()}>+ Hábito nutricional</button>
+                <div className="nutrition-actions"><button className="primary-action" onClick={() => setModal("meal")}>Registrar comida</button><button className="secondary-action" onClick={() => prepareNutritionHabit()}>+ Hábito</button></div>
               </div>
               <div className="nutrition-hero__mark" aria-hidden="true">
                 <span><Utensils size={32} strokeWidth={1.5} /></span>
@@ -1826,7 +1940,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
 
             <section className="nutrition-kpis">
               <article className="nutrition-kpi panel"><small>Hábitos activos</small><strong>{nutritionHabits.length}</strong><span>solo registros de nutrición</span></article>
-              <article className="nutrition-kpi panel"><small>Mejor racha</small><strong>{strongestNutritionHabit?.streak ?? 0} días</strong><span>{strongestNutritionHabit?.title ?? "Sin registros"}</span></article>
+              <article className="nutrition-kpi panel"><small>Mejor racha</small><strong>{strongestNutritionHabit?.streak == null ? "Sin datos" : `${strongestNutritionHabit.streak} días`}</strong><span>{strongestNutritionHabit?.title ?? "Sin registros"}</span></article>
               <article className="nutrition-kpi panel"><small>Energía</small><strong>{bodyMeasurement?.energyLevel == null ? "—" : `${bodyMeasurement.energyLevel}/5`}</strong><span>{bodyMeasurement?.recordedOn ?? "Sin medición"}</span></article>
               <article className="nutrition-kpi panel"><small>Metas activas</small><strong>{nutritionGoals.length}</strong><span>resultados relacionados</span></article>
             </section>
@@ -1843,11 +1957,12 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     return (
                       <button className={completedToday ? "nutrition-habit nutrition-habit--done" : "nutrition-habit"} key={habit.id} onClick={() => toggleTrackedHabit(habit)}>
                         <span>{completedToday ? "✓" : ""}</span>
-                        <div><strong>{habit.title}</strong><small>{habit.goal} · racha {habit.streak} días</small></div>
-                        <b>{habit.rate}%</b>
+                        <div><strong>{habit.title}</strong><small>{habit.goal} · {habit.streak == null ? "sin racha registrada" : `racha ${habit.streak} días`}</small></div>
+                        <b>{habit.rate == null ? "—" : `${habit.rate}%`}</b>
                       </button>
                     );
                   })}
+                  {activeMinimumItems.length === 0 && <div className="empty-inline"><strong>Sin no negociables activos</strong><small>Elígelos desde Sistema cuando estés listo.</small></div>}
                   {nutritionHabits.length === 0 && (
                     <div className="nutrition-empty">
                       <strong>Sin hábitos todavía</strong>
@@ -1864,6 +1979,11 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 </div>
                 <button className="ghost-action" onClick={() => { setEntryType("Medición"); setModal("quick"); }}>Registrar medición</button>
               </article>
+            </section>
+
+            <section className="meal-log panel">
+              <div className="section-heading"><div><p className="eyebrow">Reporte natural</p><h3>Comidas recientes</h3></div><button className="secondary-action" onClick={() => setModal("meal")}>+ Registrar</button></div>
+              {mealData.length ? <div className="meal-log__list">{mealData.slice(0, 5).map((meal) => <article key={meal.id}><span>{meal.mealType === "breakfast" ? "Desayuno" : meal.mealType === "lunch" ? "Almuerzo" : meal.mealType === "dinner" ? "Cena" : meal.mealType === "snack" ? "Snack" : "Otra comida"}</span><strong>{meal.description}</strong>{meal.observation && <small>{meal.observation}</small>}<time>{meal.mealDate}</time></article>)}</div> : <div className="nutrition-empty nutrition-empty--compact"><strong>Sin comidas registradas</strong><p>Escribe lo que comiste en lenguaje normal. No necesitas calorías ni pesos.</p></div>}
             </section>
 
             <section className="nutrition-suggestions panel">
@@ -1913,15 +2033,21 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <span className="attention-orbit__ring" />
                 <span className="attention-orbit__ring attention-orbit__ring--two" />
                 <strong>{attentionControlToday ?? "—"}</strong>
-                <small>% control</small>
+                <small>{attentionControlToday == null ? "Sin datos" : "% de uso fuera de estímulos rápidos"}</small>
               </div>
             </section>
 
+            <div className="progress-tabs" role="tablist" aria-label="Secciones de atención">
+              <button className={attentionTab === "overview" ? "is-active" : ""} onClick={() => setAttentionTab("overview")}>Seguimiento</button>
+              <button className={attentionTab === "resources" ? "is-active" : ""} onClick={() => setAttentionTab("resources")}>Recursos</button>
+            </div>
+
+            {attentionTab === "overview" && <>
             <section className="dopamine-metric-grid">
               {digitalMetricCards.map(({ key, label, detail, icon: Icon }) => (
                 <article className="dopamine-metric panel" key={key}>
                   <span><Icon aria-hidden="true" size={18} strokeWidth={1.7} /></span>
-                  <div><small>{label}</small><strong>{digitalWellbeing[key] ?? 0} min</strong><p>{detail}</p></div>
+                  <div><small>{label}</small><strong>{digitalWellbeing[key] == null ? "Sin datos" : `${digitalWellbeing[key]} min`}</strong><p>{detail}</p></div>
                 </article>
               ))}
             </section>
@@ -1932,7 +2058,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <div><p className="eyebrow">Últimos 7 días</p><h3>Mapa de consumo digital</h3></div>
                   <span>{recordedDigitalDays.length}/7 registrados</span>
                 </div>
-                <div className="digital-chart" role="img" aria-label="Comparación de tiempo de celular y estímulos rápidos en los últimos siete días">
+                {recordedDigitalDays.length ? <div className="digital-chart" role="img" aria-label="Comparación de tiempo de celular y estímulos rápidos en los últimos siete días">
                   {recentDigitalDays.map((day) => {
                     const total = day.screenTimeMinutes ?? 0;
                     const rapid = (day.socialMediaMinutes ?? 0) + (day.shortVideoMinutes ?? 0);
@@ -1947,8 +2073,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                       </div>
                     );
                   })}
-                </div>
-                <div className="digital-chart__legend"><span><i /> Celular total</span><span><b /> Redes + videos cortos</span></div>
+                </div> : <div className="chart-empty"><strong>Sin datos</strong><small>Registra un día de pantalla para iniciar el mapa.</small></div>}
+                {recordedDigitalDays.length > 0 && <div className="digital-chart__legend"><span><i /> Celular total</span><span><b /> Redes + videos cortos</span></div>}
               </article>
 
               <article className="attention-balance panel">
@@ -1956,10 +2082,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <h3>Balance de atención</h3>
                 <div className="attention-balance__rows">
                   <div className="attention-balance__positive"><span>Control de atención</span><strong>{attentionControlToday == null ? "—" : `${attentionControlToday}%`}</strong><small>Porción del celular fuera de redes y videos cortos</small></div>
-                  <div><span>Estímulos rápidos</span><strong>{rapidStimuliToday} min</strong><small>Redes + videos cortos</small></div>
-                  <div><span>Gaming</span><strong>{digitalWellbeing.gamingMinutes ?? 0} min</strong><small>Entretenimiento interactivo</small></div>
-                  <div><span>Uso sin clasificar</span><strong>{unclassifiedScreenToday} min</strong><small>Estudio, mensajes, utilidades u otros</small></div>
-                  <div><span>Ocio intencional</span><strong>{digitalWellbeing.intentionalLeisureMinutes ?? 0} min</strong><small>Descanso elegido conscientemente</small></div>
+                  <div><span>Estímulos rápidos</span><strong>{rapidStimuliToday == null ? "Sin datos" : `${rapidStimuliToday} min`}</strong><small>Redes + videos cortos</small></div>
+                  <div><span>Videojuegos</span><strong>{digitalWellbeing.gamingMinutes == null ? "Sin datos" : `${digitalWellbeing.gamingMinutes} min`}</strong><small>Entretenimiento interactivo</small></div>
+                  <div><span>Uso sin clasificar</span><strong>{unclassifiedScreenToday == null ? "Sin datos" : `${unclassifiedScreenToday} min`}</strong><small>Estudio, mensajes, utilidades u otros</small></div>
+                  <div><span>Ocio intencional</span><strong>{digitalWellbeing.intentionalLeisureMinutes == null ? "Sin datos" : `${digitalWellbeing.intentionalLeisureMinutes} min`}</strong><small>Descanso elegido conscientemente</small></div>
                 </div>
               </article>
             </section>
@@ -1972,10 +2098,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               <article className="digital-averages panel">
                 <div><p className="eyebrow">Promedio registrado</p><h3>Tu semana, sin juicio</h3></div>
                 <dl>
-                  <div><dt>Celular</dt><dd>{averageDigital("screenTimeMinutes")} min/día</dd></div>
-                  <div><dt>Estímulos rápidos</dt><dd>{averageDigital("socialMediaMinutes") + averageDigital("shortVideoMinutes")} min/día</dd></div>
-                  <div><dt>Ocio elegido</dt><dd>{averageDigital("intentionalLeisureMinutes")} min/día</dd></div>
-                  <div><dt>Ayuno de estímulos</dt><dd>{averageDigital("stimulationFastMinutes")} min/día</dd></div>
+                  <div><dt>Celular</dt><dd>{averageDigital("screenTimeMinutes") == null ? "Sin datos" : `${averageDigital("screenTimeMinutes")} min/día`}</dd></div>
+                  <div><dt>Estímulos rápidos</dt><dd>{averageRapid == null ? "Sin datos" : `${averageRapid} min/día`}</dd></div>
+                  <div><dt>Ocio elegido</dt><dd>{averageDigital("intentionalLeisureMinutes") == null ? "Sin datos" : `${averageDigital("intentionalLeisureMinutes")} min/día`}</dd></div>
+                  <div><dt>Ayuno de estímulos</dt><dd>{averageDigital("stimulationFastMinutes") == null ? "Sin datos" : `${averageDigital("stimulationFastMinutes")} min/día`}</dd></div>
                 </dl>
               </article>
               <article className="attention-protocol panel">
@@ -1998,13 +2124,13 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               </div>
               <div className="stimulation-fast__score">
                 <span>Hoy</span>
-                <strong>{digitalWellbeing.stimulationFastMinutes ?? 0}<small> min</small></strong>
-                <ProgressBar value={Math.min(100, ((digitalWellbeing.stimulationFastMinutes ?? 0) / 120) * 100)} accent="var(--emerald)" />
-                <div><span>30 <small>reinicio</small></span><span>60 <small>bloque limpio</small></span><span>120 <small>reto profundo</small></span></div>
+                <strong>{digitalWellbeing.stimulationFastMinutes == null ? "Sin datos" : <>{digitalWellbeing.stimulationFastMinutes}<small> min</small></>}</strong>
+                {digitalWellbeing.stimulationFastMinutes != null && <ProgressBar value={Math.min(100, (digitalWellbeing.stimulationFastMinutes / 120) * 100)} accent="var(--emerald)" />}
               </div>
             </section>
+            </>}
 
-            <section className="campaign-library">
+            {attentionTab === "resources" && <section className="campaign-library">
               <div className="section-heading">
                 <div><p className="eyebrow">Biblioteca</p><h3>Lecturas para entrenar el criterio</h3></div>
               </div>
@@ -2017,7 +2143,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   </article>
                 ))}
               </div>
-            </section>
+            </section>}
           </div>
         )}
 
@@ -2079,6 +2205,27 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             </section>
           </div>
         )}
+
+        {view === "system" && (
+          <div className="content-view system-view">
+            <section className="system-hero panel">
+              <span><Settings2 aria-hidden="true" size={28} /></span>
+              <div><p className="eyebrow">Reglas transparentes</p><h2>El sistema está para acompañarte, no para vigilarte.</h2><p>Tu reporte honesto es válido. Las evidencias externas son opcionales y nunca sustituyen tu criterio.</p></div>
+            </section>
+
+            <section className="system-grid">
+              <article className="panel system-card system-card--wide"><p className="eyebrow">Brújula y propósito</p><h3>{profileSettings.purpose || "Por definir"}</h3><p>El propósito orienta decisiones; no se convierte en porcentaje ni afecta tu valor personal.</p></article>
+              <article className="panel system-card"><p className="eyebrow">Estado</p><h3>{season.status === "active" ? "Temporada activa" : season.status === "completed" ? "Temporada completada" : "En preparación"}</h3><dl><div><dt>Inicio</dt><dd>{season.status === "active" ? season.startDate : "Por confirmar"}</dd></div><div><dt>Final</dt><dd>{season.status === "active" ? season.endDate : "Por calcular"}</dd></div><div><dt>Semana</dt><dd>{season.week ?? "—"}</dd></div></dl></article>
+              <article className="panel system-card"><p className="eyebrow">No negociables</p><h3>{activeMinimumItems.length} de 3 activos</h3><p>{activeMinimumItems.length ? activeMinimumItems.map((item) => item.title).join(" · ") : "Todavía no has elegido tus mínimos."}</p></article>
+              <article className="panel system-card"><p className="eyebrow">XP y dominio</p><h3>Dos medidas separadas</h3><p>El XP reconoce acciones, esfuerzo y constancia reportados. El dominio se construye gradualmente con prácticas y resultados. La tabla numérica definitiva aún está pendiente de tu aprobación.</p></article>
+              <article className="panel system-card"><p className="eyebrow">Rachas</p><h3>Constancia, no castigo</h3><p>Un incumplimiento puede afectar una racha, pero nunca resta XP ni borra lo que ya construiste.</p></article>
+              <article className="panel system-card"><p className="eyebrow">Día difícil</p><h3>Reduce la carga</h3><p>Protege necesidades básicas y elige una acción pequeña. Dormir, comer y recuperarte nunca son recompensas bloqueadas.</p><button className="ghost-action" onClick={() => setModal("recovery")}>Crear misión de recuperación</button></article>
+              <article className="panel system-card"><p className="eyebrow">Monedas y recompensas</p><h3>Reglas pendientes</h3><p>No hay precios ni recompensas automáticas. Se configurarán contigo antes de activarlas.</p></article>
+              <article className="panel system-card"><p className="eyebrow">Progreso general</p><h3>Ventana de 28 días</h3><p>Las barras solo aparecen cuando existen registros suficientes. Antes muestran “Aún no calculado”.</p></article>
+              <article className="panel system-card system-card--wide"><p className="eyebrow">Privacidad e IA futura</p><h3>Las decisiones importantes siempre requieren confirmación.</h3><p>La IA podrá registrar acciones pequeñas que le pidas directamente. No podrá inventar actividades ni consultar tu diario sin autorización. Acceso al diario: <strong>{profileSettings.journalAiAllowed ? "autorizado" : "no autorizado"}</strong>.</p></article>
+            </section>
+          </div>
+        )}
       </section>
 
       <nav className="mobile-nav" aria-label="Navegación móvil">
@@ -2104,7 +2251,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           onClose={() => setModal(null)}
         >
           <div className="segmented segmented--five">
-            {["Sesión de estudio", "Tarea", "Examen", "Hábito", "Meta", "Medición", "Pantallas", "Diario"].map((type) => (
+            {["Actividad", "Sesión de estudio", "Tarea", "Examen", "Hábito", "Meta", "Medición", "Pantallas", "Diario"].map((type) => (
               <button
                 key={type}
                 className={entryType === type ? "segmented__active" : ""}
@@ -2126,7 +2273,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     ? "Ej.: Resolver taller de normalización"
                     : entryType === "Meta"
                       ? "Ej.: Llegar al 12% de grasa corporal"
-                      : "Describe brevemente la evidencia real."
+                      : "Cuéntalo como ocurrió. Tu reporte honesto es suficiente."
                 }
               />
             </label>
@@ -2145,7 +2292,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               {entryType === "Sesión de estudio" ? (
                 <label className="field">
                   <span>Duración (min)</span>
-                  <input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} />
+                  <input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="Sin duración automática" />
                 </label>
               ) : (
                 <label className="field field--date">
@@ -2174,6 +2321,12 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               </label>
             </div>
           )}
+          {entryType === "Actividad" && (
+            <div className="field-row">
+              <label className="field"><span>Área</span><select value={activityCategory} onChange={(event) => setActivityCategory(event.target.value)}><option value="general">General</option><option value="study">Estudio</option><option value="training">Entrenamiento</option><option value="work">Trabajo</option><option value="creative">Creatividad</option><option value="faith">Fe</option><option value="relationship">Relaciones</option></select></label>
+              <label className="field"><span>Duración opcional (min)</span><input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="Por registrar" /></label>
+            </div>
+          )}
           {entryType === "Hábito" && (
             <div className="field-row">
               <label className="field"><span>Meta diaria</span><input type="number" min="1" value={targetValue} onChange={(event) => setTargetValue(event.target.value)} placeholder="1" /></label>
@@ -2194,11 +2347,11 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           )}
           {entryType === "Medición" && (
             <div className="metric-form-grid">
-              <label className="field"><span>Peso (kg)</span><input type="number" step=".1" value={bodyForm.weight} onChange={(event) => setBodyForm((current) => ({ ...current, weight: event.target.value }))} /></label>
-              <label className="field"><span>Cintura (cm)</span><input type="number" step=".1" value={bodyForm.waist} onChange={(event) => setBodyForm((current) => ({ ...current, waist: event.target.value }))} /></label>
-              <label className="field"><span>Grasa estimada (%)</span><input type="number" step=".1" value={bodyForm.fat} onChange={(event) => setBodyForm((current) => ({ ...current, fat: event.target.value }))} /></label>
-              <label className="field"><span>Energía (1–5)</span><input type="number" min="1" max="5" value={bodyForm.energy} onChange={(event) => setBodyForm((current) => ({ ...current, energy: event.target.value }))} /></label>
-              <label className="field"><span>Sueño (horas)</span><input type="number" step=".1" min="0" value={bodyForm.sleep} onChange={(event) => setBodyForm((current) => ({ ...current, sleep: event.target.value }))} /></label>
+              <label className="field"><span>Peso (kg)</span><input type="number" step=".1" value={bodyForm.weight} onChange={(event) => setBodyForm((current) => ({ ...current, weight: event.target.value }))} placeholder="Por registrar" /></label>
+              <label className="field"><span>Cintura (cm)</span><input type="number" step=".1" value={bodyForm.waist} onChange={(event) => setBodyForm((current) => ({ ...current, waist: event.target.value }))} placeholder="Por registrar" /></label>
+              <label className="field"><span>Grasa estimada (%)</span><input type="number" step=".1" value={bodyForm.fat} onChange={(event) => setBodyForm((current) => ({ ...current, fat: event.target.value }))} placeholder="Por registrar" /></label>
+              <label className="field"><span>Energía (1–5)</span><input type="number" min="1" max="5" value={bodyForm.energy} onChange={(event) => setBodyForm((current) => ({ ...current, energy: event.target.value }))} placeholder="Por registrar" /></label>
+              <label className="field"><span>Sueño (horas)</span><input type="number" step=".1" min="0" value={bodyForm.sleep} onChange={(event) => setBodyForm((current) => ({ ...current, sleep: event.target.value }))} placeholder="Por registrar" /></label>
             </div>
           )}
           {entryType === "Pantallas" && (
@@ -2228,12 +2381,25 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         </Modal>
       )}
 
+      {modal === "meal" && (
+        <Modal title="Registrar alimentación" eyebrow="Sin calorías obligatorias" onClose={() => setModal(null)}>
+          <div className="field-row">
+            <label className="field"><span>Tipo de comida</span><select value={mealType} onChange={(event) => setMealType(event.target.value)}><option value="breakfast">Desayuno</option><option value="lunch">Almuerzo</option><option value="dinner">Cena</option><option value="snack">Snack</option><option value="other">Otra</option></select></label>
+          </div>
+          <label className="field"><span>¿Qué comiste?</span><textarea autoFocus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Ej.: Almorcé pollo con arroz, ensalada y agua" /></label>
+          <label className="field"><span>Observación opcional</span><textarea value={mealObservation} onChange={(event) => setMealObservation(event.target.value)} placeholder="Hambre, contexto o algo que quieras recordar" /></label>
+          <p className="form-help">Este registro sirve para observar patrones sin juzgarte. No calcula calorías ni castiga alimentos.</p>
+          <div className="modal__actions"><button className="ghost-action" onClick={() => setModal(null)}>Cancelar</button><button className="primary-action modal-primary" disabled={saving} onClick={saveMeal}>{saving ? "Guardando…" : "Guardar comida"}</button></div>
+        </Modal>
+      )}
+
       {modal === "study" && (
         <Modal
           title="¿Cómo estudiaste realmente?"
           eyebrow="Cierre de misión"
           onClose={() => setModal(null)}
         >
+          <label className="field"><span>Duración real (min)</span><input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="¿Cuánto tiempo estudiaste?" /></label>
           <div className="result-options">
             {[
               "Comprendí con ayuda",
@@ -2262,8 +2428,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         >
           <div className="day-summary">
             <div><span>Misión principal</span><strong>{missionStatus === "done" ? "Cumplida" : missionStatus === "active" ? "En curso" : "Pendiente"}</strong></div>
-            <div><span>Hábitos registrados</span><strong>{completedHabits} de 5</strong></div>
-            <div><span>XP total comprobado</span><strong>{totalXp} XP</strong></div>
+            <div><span>No negociables registrados</span><strong>{completedHabits} de {activeMinimumItems.length}</strong></div>
+            <div><span>XP de esfuerzo acumulado</span><strong>{totalXp} XP</strong></div>
           </div>
           <label className="field">
             <span>¿Qué te bloqueó o qué aprendiste?</span>
@@ -2286,14 +2452,11 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       {modal === "recovery" && (
         <Modal title="Modo de día difícil" eyebrow="Recuperar sin abandonar" onClose={() => setModal(null)}>
           <p className="recovery-intro">
-            El sistema reduce el día a cuatro mínimos y pausa las misiones secundarias.
-            La misión principal solo se conserva si tiene una fecha crítica.
+            Reduce la carga y elige una acción pequeña para retomar. Comer, dormir y recuperarte siguen siendo necesidades básicas, nunca premios.
           </p>
           <div className="recovery-plan">
-            <div><span>☼</span><strong>Oración</strong><small>5 min</small></div>
-            <div><span>♢</span><strong>Higiene básica</strong><small>Rutina esencial</small></div>
-            <div><span>▦</span><strong>Estudio mínimo</strong><small>20 min</small></div>
-            <div><span>↗</span><strong>Movimiento</strong><small>10 min</small></div>
+            {activeMinimumItems.map((item) => <div key={item.key}><span>◇</span><strong>{item.title}</strong><small>{item.detail}</small></div>)}
+            {activeMinimumItems.length === 0 && <div><span>↺</span><strong>Una acción pequeña</strong><small>Elígela según tu situación real</small></div>}
           </div>
           <label className="field">
             <span>¿Qué está ocurriendo hoy?</span>

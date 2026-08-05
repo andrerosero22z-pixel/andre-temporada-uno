@@ -68,7 +68,7 @@ export function AuthScreen({ loading = false }: { loading?: boolean }) {
         <p>
           Entra para guardar en Supabase tus materias, tareas, exámenes y
           no negociables. Las estadísticas de demostración se reemplazarán
-          conforme registres evidencia real.
+          conforme registres acciones reales.
         </p>
 
         {loading ? (

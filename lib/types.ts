@@ -6,7 +6,8 @@ export type View =
   | "habits"
   | "nutrition"
   | "dopamine"
-  | "journal";
+  | "journal"
+  | "system";
 
 export type MissionStatus = "pending" | "active" | "done";
 export type TaskState = "today" | "upcoming" | "done";
@@ -24,16 +25,17 @@ export type Task = {
 
 export type Skill = {
   name: string;
-  level: number;
+  level: number | null;
   xp: number;
-  next: number;
+  next: number | null;
+  mastery?: number | null;
   evidence: string;
   focus: string;
 };
 
 export type AttributeGroup = {
   name: string;
-  level: number;
+  level: number | null;
   icon: string;
   color: string;
   description: string;
@@ -80,9 +82,10 @@ export type HabitOverview = {
   title: string;
   habitType: "habit" | "non_negotiable";
   goal: string;
-  streak: number;
-  rate: number;
-  week: boolean[];
+  streak: number | null;
+  rate: number | null;
+  recordedDays: number;
+  week: Array<boolean | null>;
 };
 
 export type DigitalWellbeing = {
@@ -103,6 +106,30 @@ export type StoredSkill = {
   name: string;
   xp: number;
   evidenceCount: number;
+  mastery: number | null;
+};
+
+export type SeasonInfo = {
+  id: string | null;
+  name: string;
+  status: "planned" | "active" | "completed";
+  startDate: string | null;
+  endDate: string | null;
+  week: number | null;
+};
+
+export type ProfileSettings = {
+  onboardingCompleted: boolean;
+  purpose: string;
+  journalAiAllowed: boolean;
+};
+
+export type MealLog = {
+  id: string;
+  mealDate: string;
+  mealType: string;
+  description: string;
+  observation: string;
 };
 
 export type HabitKey =
@@ -129,6 +156,9 @@ export type DashboardData = {
   digitalHistory: DigitalDay[];
   digitalHabitIds: Record<string, string>;
   skills: StoredSkill[];
+  profile: ProfileSettings;
+  season: SeasonInfo;
+  meals: MealLog[];
   totalXp: number;
   coins: number;
 };

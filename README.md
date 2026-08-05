@@ -1,6 +1,6 @@
 # Andre: Temporada Uno
 
-Sistema personal gamificado para organizar estudios, hábitos, metas y evidencia
+Sistema personal gamificado para organizar estudios, hábitos, metas y reportes
 de progreso. La aplicación está pensada primero para Andre y se publica como
 una web instalable en Vercel.
 
@@ -20,6 +20,10 @@ Ya usan datos reales de Supabase:
 - Hábitos personalizados e historial de 28 días.
 - Tiempo de celular, redes, videos cortos, videojuegos y ocio intencional.
 - Diario y cierre del día.
+- Configuración inicial y fecha real de inicio de la temporada.
+- Registro natural de alimentación sin calorías obligatorias.
+- Reportes honestos de actividades sin comprobantes obligatorios.
+- Apartado Sistema con reglas, privacidad y estado de temporada.
 
 Comienzan en cero y todavía necesitan más reglas de producto:
 
@@ -29,8 +33,19 @@ Comienzan en cero y todavía necesitan más reglas de producto:
 - Sincronización con Google Calendar.
 - Revisión mensual y análisis automático de patrones.
 
-Es importante conservar esta distinción hasta que cada módulo calcule sus
-valores desde evidencia real.
+La versión consolidada diferencia un cero real de un dato desconocido. Las
+tendencias y barras aparecen como “Aún no calculado” hasta reunir registros
+suficientes.
+
+## Migraciones pendientes
+
+Para activar la versión consolidada en Supabase deben ejecutarse, en orden:
+
+1. `supabase/migrations/202608040001_ai_ready_core.sql`
+2. `supabase/migrations/202608040002_consolidate_first_season.sql`
+
+Ambas son aditivas, mantienen RLS y no eliminan tablas ni datos. No se debe
+publicar la interfaz consolidada antes de aplicar las dos migraciones.
 
 ## Estructura
 
@@ -69,8 +84,9 @@ desplegarse en Vercel.
 Cada dato visible debe pertenecer a uno de estos estados:
 
 1. Real: calculado desde Supabase.
-2. Provisional: mostrado claramente como una estimación.
-3. Demostración: diseño pendiente de conexión.
+2. Desconocido: “Sin datos”, “Por registrar” o “Aún no calculado”.
+3. Contable en cero: XP, monedas, sesiones o tareas realmente inexistentes.
 
-Ninguna barra debe convertirse en “real” hasta tener una fórmula y una fuente
-de evidencia comprensibles.
+El XP de esfuerzo y el dominio de una habilidad son medidas independientes.
+La tabla definitiva de XP, niveles, monedas y recompensas sigue pendiente de
+aprobación; hasta entonces no se asignan cantidades nuevas automáticamente.
