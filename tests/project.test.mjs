@@ -175,10 +175,25 @@ test("keeps the public review route isolated from Supabase authentication", asyn
   ]);
 
   assert.match(review, /<Dashboard forcedReview/);
+  assert.match(review, /process\.env\.ENABLE_REVIEW_MODE !== "true"/);
+  assert.match(review, /notFound\(\)/);
+  assert.match(review, /dynamic = "force-dynamic"/);
   assert.match(page, /if \(reviewMode\) return;/);
   assert.match(page, /Sin acceso a datos privados · solo lectura/);
   assert.match(page, /Vista previa: la temporada no se guardó ni accedió a datos privados/);
   assert.match(page, /\(reviewMode \|\| dataStatus === "ready"\) && season\.status === "planned"/);
+});
+
+test("keeps public review disabled by default behind a server-only environment flag", async () => {
+  const [review, envExample] = await Promise.all([
+    readFile(new URL("../app/review/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(review, /import \{ notFound \} from "next\/navigation"/);
+  assert.match(review, /if \(process\.env\.ENABLE_REVIEW_MODE !== "true"\)/);
+  assert.doesNotMatch(review, /NEXT_PUBLIC_ENABLE_REVIEW_MODE/);
+  assert.match(envExample, /^ENABLE_REVIEW_MODE=false$/m);
 });
 
 test("keeps consolidation migrations additive and protects every new table with RLS", async () => {
