@@ -16,6 +16,7 @@ import {
   Gamepad2,
   House,
   ListChecks,
+  Menu,
   MessageCircleMore,
   MoonStar,
   PenLine,
@@ -26,6 +27,7 @@ import {
   Target,
   TrendingUp,
   Utensils,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { AuthScreen } from "@/components/auth-screen";
@@ -69,6 +71,14 @@ import type {
   TaskState,
   View,
 } from "@/lib/types";
+import {
+  addDaysToIsoDate,
+  dateIsoInAppTimeZone,
+  formatAppDate,
+  formatPlannerDate,
+  greetingForAppTime,
+  seasonWeekFromDate,
+} from "@/lib/time";
 
 const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "today", label: "Hoy", icon: House },
@@ -79,6 +89,12 @@ const navItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "nutrition", label: "Nutrición", icon: Utensils },
   { id: "dopamine", label: "Atención", icon: BrainCircuit },
   { id: "journal", label: "Diario", icon: BookOpenText },
+];
+
+const mobilePrimaryNavItems = navItems.slice(0, 4);
+const mobileMoreNavItems: { id: View; label: string; icon: LucideIcon }[] = [
+  ...navItems.slice(4),
+  { id: "system", label: "Sistema", icon: Settings2 },
 ];
 
 const minimumItems: { key: HabitKey; icon: LucideIcon; title: string; detail: string }[] = [
@@ -329,15 +345,6 @@ function formatTaskDate(value: string | null, state: TaskState) {
   }).format(date);
 }
 
-function todayLabel() {
-  return new Intl.DateTimeFormat("es-EC", {
-    timeZone: "America/Guayaquil",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
-}
-
 function ProgressBar({
   value,
   accent = "var(--blue)",
@@ -390,7 +397,7 @@ function Modal({
         aria-labelledby="modal-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <button className="modal__close" onClick={onClose} aria-label="Cerrar">
+        <button className="modal__close" onClick={onClose} aria-label="Cerrar ventana">
           ×
         </button>
         <p className="eyebrow">{eyebrow}</p>
@@ -451,6 +458,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   );
   const reviewMode = forcedReview || reviewFromQuery;
   const [view, setView] = useState<View>("today");
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [clientClock, setClientClock] = useState<{ today: string; greeting: string } | null>(null);
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
   const [habits, setHabits] = useState<HabitState>({
@@ -614,23 +624,24 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     ? Math.round(nutritionHabits.reduce((sum, habit) => sum + (habit.rate ?? 0), 0) / nutritionHabits.length)
     : null;
   const strongestNutritionHabit = [...nutritionHabits].sort((left, right) => (right.streak ?? 0) - (left.streak ?? 0))[0];
-  const plannerDays = useMemo(() => Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    const iso = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-    const parts = new Intl.DateTimeFormat("es-EC", { timeZone: "America/Guayaquil", weekday: "short", day: "numeric" }).formatToParts(date);
+  const plannerDays = useMemo(() => !clientClock ? [] : Array.from({ length: 7 }, (_, index) => {
+    const iso = addDaysToIsoDate(clientClock.today, index);
+    const parts = formatPlannerDate(iso);
     return {
       iso,
-      day: parts.find((part) => part.type === "weekday")?.value ?? "",
-      date: parts.find((part) => part.type === "day")?.value ?? "",
+      day: parts.day,
+      date: parts.date,
       count: tasks.filter((task) => task.dueDate === iso && task.state !== "done").length,
       active: index === 0,
     };
-  }), [tasks]);
+  }), [clientClock, tasks]);
   const activeMinimumItems = minimumItems.filter((item) => Boolean(habitIds[item.key]));
   const seasonLabel = season.status === "active" && season.week
     ? `${season.name} · Semana ${season.week}`
     : "En preparación";
+
+  const currentDateLabel = clientClock ? formatAppDate(clientClock.today) : "Hoy";
+  const greetingLabel = clientClock?.greeting ?? "Hola";
 
   function applyDashboardData(data: DashboardData) {
     setTasks(data.tasks);
@@ -660,16 +671,43 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   }
 
   async function startSeason(input: OnboardingInput) {
+    if (reviewMode) {
+      const endDate = addDaysToIsoDate(input.startDate, 55);
+      setProfileSettings((current) => ({ ...current, purpose: input.purpose.trim(), onboardingCompleted: true }));
+      setSeason({
+        id: "review-season",
+        name: "Temporada 1",
+        status: "active",
+        startDate: input.startDate,
+        endDate,
+        week: seasonWeekFromDate(input.startDate, clientClock?.today),
+      });
+      setShowOnboarding(false);
+      notify("Vista previa: la temporada no se guardó ni accedió a datos privados.");
+      return;
+    }
     if (!userId) throw new Error("Tu sesión expiró. Vuelve a entrar.");
     setSaving(true);
     try {
       await completeOnboarding(getSupabaseBrowserClient(), userId, input);
       await refreshData();
+      setShowOnboarding(false);
       notify("Temporada 1 iniciada.");
     } finally {
       setSaving(false);
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const now = new Date();
+      setClientClock({
+        today: dateIsoInAppTimeZone(now),
+        greeting: greetingForAppTime(now),
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (reviewMode) return;
@@ -720,6 +758,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         if (cancelled) return;
 
         applyDashboardData(data);
+        if (data.season.status === "planned" && !data.profile.onboardingCompleted) {
+          setShowOnboarding(true);
+        }
         setDataStatus("ready");
       } catch {
         if (!cancelled) setDataStatus("error");
@@ -1037,7 +1078,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     }
     setSaving(true);
     try {
-      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const today = dateIsoInAppTimeZone();
       await createPlannerItem(getSupabaseBrowserClient(), userId, {
         title: activeMinimumItems.length
           ? `Retomar con un mínimo: ${activeMinimumItems.map((item) => item.title).join(", ")}`
@@ -1067,17 +1108,6 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
 
   if (!reviewMode && authStatus !== "signed_in") {
     return <AuthScreen loading={authStatus === "checking"} />;
-  }
-
-  if (!reviewMode && dataStatus === "ready" && !profileSettings.onboardingCompleted) {
-    return (
-      <SeasonOnboarding
-        displayName={userLabel}
-        saving={saving}
-        onStart={startSeason}
-        onSignOut={signOut}
-      />
-    );
   }
 
   return (
@@ -1140,9 +1170,9 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         )}
         <header className="topbar">
           <div>
-            <p className="eyebrow">{todayLabel()}</p>
-            <h1>
-              {view === "today" && "Buenas noches, Andre"}
+            <p className="eyebrow">{currentDateLabel}</p>
+            <h1 className={view === "today" ? "topbar__greeting" : undefined}>
+              {view === "today" && `${greetingLabel}, ${reviewMode ? "Andre" : userLabel}`}
               {view === "studies" && "Planificador"}
               {view === "progress" && "Mapa de progreso"}
               {view === "goals" && "Metas"}
@@ -1154,6 +1184,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             </h1>
           </div>
           <div className="player-status">
+            <span className="mobile-season-status">{season.status === "active" ? `Semana ${season.week ?? "—"}` : "En preparación"}</span>
             {dataStatus === "error" && <span className="data-status data-status--error">Sin conexión</span>}
             <div className="season-pill">{seasonLabel}</div>
             <div className="level-badge">◇</div>
@@ -1163,14 +1194,24 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               <small>Niveles por definir</small>
             </div>
             <button className="sign-out system-shortcut" onClick={() => setView("system")} type="button" aria-label="Abrir Sistema"><Settings2 size={16} /></button>
-            <button className="sign-out" onClick={signOut} type="button">
-              {reviewMode ? "Cerrar" : "Salir"}
-            </button>
+            {!reviewMode && <button className="sign-out" onClick={signOut} type="button">Cerrar sesión</button>}
           </div>
         </header>
 
         {view === "today" && (
           <div className="dashboard">
+            {season.status === "planned" && (
+              <section className="season-setup-callout panel">
+                <div>
+                  <p className="eyebrow">Temporada en preparación</p>
+                  <h2>Tu Semana 1 comienza cuando tú lo confirmes.</h2>
+                  <p>Elige hasta tres no negociables y registra solo las líneas base que ya conozcas. Todo lo demás puede quedar vacío.</p>
+                </div>
+                <button className="primary-action" type="button" onClick={() => setShowOnboarding(true)}>
+                  Configurar Temporada 1 <ArrowRight size={17} />
+                </button>
+              </section>
+            )}
             <section className="mission-card panel">
               <div className="mission-map" aria-hidden="true">
                 <span className="route route--one" />
@@ -2213,6 +2254,22 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             </section>
 
             <section className="system-grid">
+              {season.status === "planned" && (
+                <article className="panel system-card system-card--wide system-card--setup">
+                  <p className="eyebrow">Temporada 1</p>
+                  <h3>La temporada todavía no ha comenzado.</h3>
+                  <p>Confirma tu propósito opcional, tus mínimos y la fecha desde la que se calculará la Semana 1.</p>
+                  <button className="primary-action" type="button" onClick={() => setShowOnboarding(true)}>
+                    Configurar y comenzar <ArrowRight size={16} />
+                  </button>
+                </article>
+              )}
+              <article className="panel system-card system-card--account">
+                <p className="eyebrow">Cuenta</p>
+                <h3>{reviewMode ? "Vista pública segura" : "Sesión de Andre"}</h3>
+                <p>{reviewMode ? "Salir de esta representación no modifica datos." : "Cierra la sesión únicamente en este dispositivo."}</p>
+                <button className="ghost-action" type="button" onClick={signOut}>{reviewMode ? "Cerrar revisión" : "Cerrar sesión"}</button>
+              </article>
               <article className="panel system-card system-card--wide"><p className="eyebrow">Brújula y propósito</p><h3>{profileSettings.purpose || "Por definir"}</h3><p>El propósito orienta decisiones; no se convierte en porcentaje ni afecta tu valor personal.</p></article>
               <article className="panel system-card"><p className="eyebrow">Estado</p><h3>{season.status === "active" ? "Temporada activa" : season.status === "completed" ? "Temporada completada" : "En preparación"}</h3><dl><div><dt>Inicio</dt><dd>{season.status === "active" ? season.startDate : "Por confirmar"}</dd></div><div><dt>Final</dt><dd>{season.status === "active" ? season.endDate : "Por calcular"}</dd></div><div><dt>Semana</dt><dd>{season.week ?? "—"}</dd></div></dl></article>
               <article className="panel system-card"><p className="eyebrow">No negociables</p><h3>{activeMinimumItems.length} de 3 activos</h3><p>{activeMinimumItems.length ? activeMinimumItems.map((item) => item.title).join(" · ") : "Todavía no has elegido tus mínimos."}</p></article>
@@ -2227,21 +2284,60 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         )}
       </section>
 
+      {mobileMoreOpen && (
+        <div className="mobile-more-layer">
+          <button className="mobile-more-backdrop" type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Cerrar menú" />
+          <section className="mobile-more-panel" id="mobile-more-menu" aria-label="Más módulos">
+            <header><strong>Más</strong><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Cerrar menú"><X size={19} /></button></header>
+            <div>
+              {mobileMoreNavItems.map((item) => {
+                const Icon = item.icon;
+                return <button key={item.id} className={view === item.id ? "is-active" : ""} type="button" onClick={() => { setView(item.id); setMobileMoreOpen(false); }}><Icon aria-hidden="true" size={19} /><span>{item.label}</span></button>;
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
       <nav className="mobile-nav" aria-label="Navegación móvil">
-        {navItems.map((item) => {
+        {mobilePrimaryNavItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.id}
               className={view === item.id ? "mobile-nav__active" : ""}
-              onClick={() => setView(item.id)}
+              type="button"
+              onClick={() => { setView(item.id); setMobileMoreOpen(false); }}
             >
               <span><Icon aria-hidden="true" size={18} strokeWidth={1.8} /></span>
               {item.label}
             </button>
           );
         })}
+        <button
+          className={mobileMoreNavItems.some((item) => item.id === view) || mobileMoreOpen ? "mobile-nav__active" : ""}
+          type="button"
+          aria-expanded={mobileMoreOpen}
+          aria-controls="mobile-more-menu"
+          onClick={() => setMobileMoreOpen((current) => !current)}
+        >
+          <span><Menu aria-hidden="true" size={18} strokeWidth={1.8} /></span>
+          Más
+        </button>
       </nav>
+
+      {(reviewMode || dataStatus === "ready") && season.status === "planned" && (
+        <SeasonOnboarding
+          open={showOnboarding}
+          displayName={reviewMode ? "Andre" : userLabel}
+          initialPurpose={profileSettings.purpose}
+          suggestedStartDate={clientClock?.today ?? ""}
+          reviewMode={reviewMode}
+          saving={saving}
+          onStart={startSeason}
+          onClose={() => setShowOnboarding(false)}
+        />
+      )}
 
       {modal === "quick" && (
         <Modal

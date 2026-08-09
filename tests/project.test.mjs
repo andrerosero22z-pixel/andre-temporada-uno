@@ -177,7 +177,8 @@ test("keeps the public review route isolated from Supabase authentication", asyn
   assert.match(review, /<Dashboard forcedReview/);
   assert.match(page, /if \(reviewMode\) return;/);
   assert.match(page, /Sin acceso a datos privados · solo lectura/);
-  assert.match(page, /if \(!reviewMode && dataStatus === "ready"/);
+  assert.match(page, /Vista previa: la temporada no se guardó ni accedió a datos privados/);
+  assert.match(page, /\(reviewMode \|\| dataStatus === "ready"\) && season\.status === "planned"/);
 });
 
 test("keeps consolidation migrations additive and protects every new table with RLS", async () => {
@@ -192,4 +193,48 @@ test("keeps consolidation migrations additive and protects every new table with 
   assert.match(migration, /alter table public\.meal_logs enable row level security/);
   assert.match(migration, /using \(\(select auth\.uid\(\)\) = user_id\)/);
   assert.match(migration, /with check \(\(select auth\.uid\(\)\) = user_id\)/);
+});
+
+test("exposes an explicit season setup from Today and System", async () => {
+  const [page, onboarding, dashboard] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/season-onboarding.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/supabase/dashboard.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /Configurar Temporada 1/);
+  assert.match(page, /Configurar y comenzar/);
+  assert.match(onboarding, /useState\(""\)/);
+  assert.match(onboarding, /Comenzar Temporada 1/);
+  assert.match(dashboard, /status: "active"/);
+  assert.match(dashboard, /addDaysToIsoDate\(input\.startDate, 55\)/);
+});
+
+test("uses a compact five-action mobile navigation with a complete More panel", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /mobilePrimaryNavItems = navItems\.slice\(0, 4\)/);
+  assert.match(page, /Más módulos/);
+  assert.match(page, /label: "Sistema"/);
+  assert.match(page, /aria-label="Cerrar menú"/);
+  assert.match(styles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.mobile-more-panel/);
+});
+
+test("keeps the first server and client render stable before reading the clock", async () => {
+  const [page, onboarding, time] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/season-onboarding.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/time.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /useState<\{ today: string; greeting: string \} \| null>\(null\)/);
+  assert.match(page, /clientClock \? formatAppDate\(clientClock\.today\) : "Hoy"/);
+  assert.doesNotMatch(page, /\{todayLabel\(\)\}/);
+  assert.doesNotMatch(onboarding, /useState\(localToday\(\)\)/);
+  assert.match(time, /seasonWeekFromDate/);
+  assert.doesNotMatch(page, /suppressHydrationWarning/);
 });

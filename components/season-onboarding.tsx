@@ -22,36 +22,35 @@ const choices: Array<{ key: HabitKey; title: string; detail: string }> = [
   { key: "sleep", title: "Dormir a tiempo", detail: "Proteger descanso y recuperación" },
 ];
 
-function localToday() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Guayaquil",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
 function numberOrNull(value: string) {
   return value.trim() === "" ? null : Number(value);
 }
 
 export function SeasonOnboarding({
+  open,
   displayName,
+  initialPurpose,
+  suggestedStartDate,
+  reviewMode,
   saving,
   onStart,
-  onSignOut,
+  onClose,
 }: {
+  open: boolean;
   displayName: string;
+  initialPurpose: string;
+  suggestedStartDate: string;
+  reviewMode: boolean;
   saving: boolean;
   onStart: (input: OnboardingInput) => Promise<void>;
-  onSignOut: () => void;
+  onClose: () => void;
 }) {
   const [step, setStep] = useState(0);
-  const [purpose, setPurpose] = useState("");
+  const [purpose, setPurpose] = useState(initialPurpose);
   const [selected, setSelected] = useState<HabitKey[]>([]);
   const [subjects, setSubjects] = useState("");
   const [firstTask, setFirstTask] = useState("");
-  const [startDate, setStartDate] = useState(localToday());
+  const [startDate, setStartDate] = useState("");
   const [body, setBody] = useState({ weight: "", waist: "", fat: "", energy: "", sleep: "" });
   const [screens, setScreens] = useState({ total: "", social: "", shortVideo: "", gaming: "", leisure: "", fast: "" });
   const [error, setError] = useState("");
@@ -100,11 +99,11 @@ export function SeasonOnboarding({
   }
 
   return (
-    <main className="onboarding-shell">
+    <div className="onboarding-shell" role="dialog" aria-modal="true" aria-label="Configurar Temporada 1" hidden={!open}>
       <section className="onboarding-card">
         <header className="onboarding-head">
           <div className="onboarding-brand"><Compass aria-hidden="true" /><span>Andre · Temporada Uno</span></div>
-          <button type="button" onClick={onSignOut}>Salir</button>
+          <button type="button" onClick={onClose}>{reviewMode ? "Cerrar vista previa" : "Ahora no"}</button>
         </header>
 
         <div className="onboarding-progress" aria-label={`Paso ${step + 1} de ${steps.length}`}>
@@ -155,7 +154,7 @@ export function SeasonOnboarding({
           <p className="eyebrow">Comenzar con intención</p>
           <h1>Confirma el inicio de tu primera temporada.</h1>
           <p>La Semana 1 se calculará desde esta fecha. Antes de confirmar, tu estado seguirá siendo “En preparación”.</p>
-          <label className="field"><span>Fecha de inicio</span><div className="date-field"><CalendarDays size={18} /><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></div></label>
+          <div className="field"><span>Fecha de inicio</span><div className="date-field"><CalendarDays size={18} /><input aria-label="Fecha de inicio" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /><button type="button" disabled={!suggestedStartDate} onClick={() => setStartDate(suggestedStartDate)}>Usar hoy</button></div></div>
           <div className="onboarding-summary">
             <div><small>No negociables</small><strong>{selected.length ? selected.map((key) => choices.find((item) => item.key === key)?.title).join(" · ") : "Por configurar"}</strong></div>
             <div><small>Materias</small><strong>{subjects.trim() || "Por registrar"}</strong></div>
@@ -171,6 +170,6 @@ export function SeasonOnboarding({
             : <button className="primary-action" type="button" disabled={saving || !startDate} onClick={submit}>{saving ? "Preparando…" : "Comenzar Temporada 1"} <ArrowRight size={16} /></button>}
         </footer>
       </section>
-    </main>
+    </div>
   );
 }

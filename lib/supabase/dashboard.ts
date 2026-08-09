@@ -18,8 +18,7 @@ import type {
   Task,
   TaskState,
 } from "@/lib/types";
-
-const TIME_ZONE = "America/Guayaquil";
+import { addDaysToIsoDate, dateIsoInAppTimeZone, seasonWeekFromDate } from "@/lib/time";
 
 const habitDefinitions: Record<
   HabitKey,
@@ -139,20 +138,14 @@ type MealRow = {
 };
 
 function localDate(value = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(value);
+  return dateIsoInAppTimeZone(value);
 }
 
 function recentDates(days: number) {
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (days - index - 1));
-    return localDate(date);
-  });
+  const today = localDate();
+  return Array.from({ length: days }, (_, index) =>
+    addDaysToIsoDate(today, -(days - index - 1)),
+  );
 }
 
 function datePart(value: string | null) {
@@ -413,8 +406,8 @@ export async function loadDashboardData(
     status: seasonRow?.status ?? "planned",
     startDate: seasonRow?.start_date ?? null,
     endDate: seasonRow?.end_date ?? null,
-    week: seasonRow?.status === "active" && seasonRow.start_date
-      ? Math.max(1, Math.min(8, Math.floor((Date.now() - new Date(`${seasonRow.start_date}T00:00:00-05:00`).getTime()) / 604800000) + 1))
+    week: seasonRow?.status === "active"
+      ? seasonWeekFromDate(seasonRow.start_date)
       : null,
   };
   const meals: MealLog[] = (unwrap<MealRow[]>(mealsResult) ?? []).map((meal) => ({
@@ -702,14 +695,10 @@ export async function completeOnboarding(
   if (input.nonNegotiables.length > 3) {
     throw new Error("Puedes comenzar con un máximo de tres no negociables.");
   }
-  const endDate = new Date(`${input.startDate}T12:00:00`);
-  endDate.setDate(endDate.getDate() + 55);
-  const endDateValue = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(endDate);
+  if (!input.startDate) {
+    throw new Error("Confirma la fecha de inicio antes de comenzar.");
+  }
+  const endDateValue = addDaysToIsoDate(input.startDate, 55);
 
   unwrap(await client.from("profiles").update({
     purpose: input.purpose.trim() || null,
