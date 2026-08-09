@@ -63,13 +63,9 @@ export function AuthScreen({ loading = false }: { loading?: boolean }) {
         <div className="auth-mark" aria-hidden="true">
           ◆
         </div>
-        <p className="eyebrow">Andre · Temporada Uno · V2 RPG</p>
-        <h1>Tu progreso ahora sí será tuyo</h1>
-        <p>
-          Entra para guardar en Supabase tus materias, tareas, exámenes y
-          no negociables. Las estadísticas de demostración se reemplazarán
-          conforme registres acciones reales.
-        </p>
+        <p className="eyebrow">Andre · Temporada Uno</p>
+        <h1>Continúa tu aventura</h1>
+        <p>Entra para registrar tus avances y seguir construyendo tu temporada.</p>
 
         {loading ? (
           <div className="auth-loading" role="status">
@@ -118,10 +114,6 @@ export function AuthScreen({ loading = false }: { loading?: boolean }) {
             {status}
           </p>
         )}
-        <small>
-          Google solo se usa para identificarte. No pedimos acceso a Drive,
-          Calendar ni a tus correos.
-        </small>
       </section>
     </main>
   );

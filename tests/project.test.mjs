@@ -10,6 +10,11 @@ test("keeps Supabase authentication and Google sign-in configured", async () => 
 
   assert.match(authScreen, /signInWithOAuth/);
   assert.match(authScreen, /provider:\s*"google"/);
+  assert.match(authScreen, /Continúa tu aventura/);
+  assert.doesNotMatch(authScreen, /guardar en Supabase/);
+  assert.doesNotMatch(authScreen, /estadísticas de demostración/);
+  assert.doesNotMatch(authScreen, /V2 RPG/);
+  assert.doesNotMatch(authScreen, /Drive,\s*Calendar/);
   assert.match(client, /NEXT_PUBLIC_SUPABASE_URL/);
   assert.match(client, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
 });
