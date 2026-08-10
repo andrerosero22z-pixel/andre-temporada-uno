@@ -605,15 +605,15 @@ export async function createHabit(
     optional: boolean;
   },
 ) {
+  const existing = unwrap<{ id: string }>(
+    await client.from("habits").select("id").eq("user_id", userId).eq("title", input.title.trim()).limit(1).maybeSingle(),
+  );
   if (input.habitType === "non_negotiable") {
     const activeMinimums = unwrap<Array<{ id: string }>>(
       await client.from("habits").select("id").eq("user_id", userId).eq("habit_type", "non_negotiable").eq("active", true),
     ) ?? [];
-    if (activeMinimums.length >= 3) throw new Error("Solo puedes tener tres no negociables activos.");
+    if (!existing && activeMinimums.length >= 3) throw new Error("Solo puedes tener tres no negociables activos.");
   }
-  const existing = unwrap<{ id: string }>(
-    await client.from("habits").select("id").eq("user_id", userId).eq("title", input.title.trim()).limit(1).maybeSingle(),
-  );
   const payload = {
     user_id: userId,
     title: input.title.trim(),
@@ -837,7 +837,13 @@ async function persistSeasonSetup(
     unwrap(await client.from("seasons").insert({ user_id: userId, ...seasonPayload }));
   }
 
-  unwrap(await client.from("habits").update({ active: false }).eq("user_id", userId).eq("habit_type", "non_negotiable"));
+  const customMinimums = unwrap<Array<{ id: string }>>(
+    await client.from("habits").select("id").eq("user_id", userId).eq("habit_type", "non_negotiable").eq("active", true).is("system_key", null),
+  ) ?? [];
+  if (customMinimums.length + input.nonNegotiables.length > 3) {
+    throw new Error("Solo puedes tener tres no negociables activos.");
+  }
+  unwrap(await client.from("habits").update({ active: false }).eq("user_id", userId).eq("habit_type", "non_negotiable").not("system_key", "is", null));
   for (const key of input.nonNegotiables) {
     const definition = habitDefinitions[key];
     const existing = unwrap<Array<{ id: string }>>(
