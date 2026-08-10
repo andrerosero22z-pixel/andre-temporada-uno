@@ -13,6 +13,7 @@ import type {
   MealLog,
   ProfileSettings,
   SeasonInfo,
+  SeasonSetupInput,
   StoredSkill,
   SubjectSummary,
   Task,
@@ -124,6 +125,7 @@ type ProfileRow = {
 type SeasonRow = {
   id: string;
   name: string;
+  description: string | null;
   status: SeasonInfo["status"];
   start_date: string;
   end_date: string;
@@ -299,7 +301,7 @@ export async function loadDashboardData(
     client.from("skill_evidence").select("skill_id").eq("user_id", userId),
     client.from("xp_transactions").select("amount").eq("user_id", userId),
     client.from("profiles").select("coins, purpose, onboarding_completed, journal_ai_allowed").eq("user_id", userId).maybeSingle(),
-    client.from("seasons").select("id, name, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("seasons").select("id, name, description, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("meal_logs").select("id, meal_date, meal_type, description, observation").eq("user_id", userId).order("meal_date", { ascending: false }).order("created_at", { ascending: false }).limit(12),
   ]);
 
@@ -403,6 +405,7 @@ export async function loadDashboardData(
   const season: SeasonInfo = {
     id: seasonRow?.id ?? null,
     name: seasonRow?.name ?? "Temporada 1",
+    objective: seasonRow?.description ?? "",
     status: seasonRow?.status ?? "planned",
     startDate: seasonRow?.start_date ?? null,
     endDate: seasonRow?.end_date ?? null,
@@ -679,51 +682,71 @@ export async function saveActivityReport(
   }));
 }
 
-export async function completeOnboarding(
+async function ensureSubjectStatus(
   client: SupabaseClient,
   userId: string,
-  input: {
-    purpose: string;
-    nonNegotiables: HabitKey[];
-    subjects: string[];
-    firstTask: string;
-    startDate: string;
-    body: Omit<BodyMeasurement, "recordedOn"> | null;
-    screens: DigitalWellbeing | null;
-  },
+  name: string,
+  status: "pending" | "studying",
+) {
+  const normalized = name.trim();
+  if (!normalized) return null;
+  const subjects = unwrap<SubjectRow[]>(
+    await client.from("subjects").select("id, name, status").eq("user_id", userId),
+  ) ?? [];
+  const existing = subjects.find((subject) =>
+    subject.name.localeCompare(normalized, "es", { sensitivity: "accent" }) === 0,
+  );
+  if (existing) {
+    if (existing.status !== status) {
+      unwrap(await client.from("subjects").update({ status }).eq("id", existing.id).eq("user_id", userId));
+    }
+    return { ...existing, status };
+  }
+  const inserted = unwrap<SubjectRow[]>(
+    await client.from("subjects").insert({ user_id: userId, name: normalized, status }).select("id, name, status"),
+  );
+  if (!inserted?.[0]) throw new Error("No se pudo crear la materia.");
+  return inserted[0];
+}
+
+async function persistSeasonSetup(
+  client: SupabaseClient,
+  userId: string,
+  input: SeasonSetupInput,
+  activate: boolean,
 ) {
   if (input.nonNegotiables.length > 3) {
     throw new Error("Puedes comenzar con un máximo de tres no negociables.");
   }
-  if (!input.startDate) {
+  if (activate && !input.startDate) {
     throw new Error("Confirma la fecha de inicio antes de comenzar.");
   }
-  const endDateValue = addDaysToIsoDate(input.startDate, 55);
 
   unwrap(await client.from("profiles").update({
     purpose: input.purpose.trim() || null,
-    onboarding_completed: true,
-    onboarding_completed_at: new Date().toISOString(),
+    onboarding_completed: activate,
+    onboarding_completed_at: activate ? new Date().toISOString() : null,
   }).eq("user_id", userId));
 
   const seasonRows = unwrap<SeasonRow[]>(
-    await client.from("seasons").select("id, name, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1),
+    await client.from("seasons").select("id, name, description, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1),
   ) ?? [];
-  if (seasonRows[0]) {
-    unwrap(await client.from("seasons").update({
-      status: "active",
-      start_date: input.startDate,
-      end_date: endDateValue,
-    }).eq("id", seasonRows[0].id));
+  const existingSeason = seasonRows[0];
+  const startDateValue = input.startDate || existingSeason?.start_date;
+  if (!startDateValue) {
+    throw new Error("Indica una fecha propuesta para guardar la preparación.");
+  }
+  const seasonPayload = {
+    name: input.seasonName.trim() || existingSeason?.name || "Temporada 1",
+    description: input.seasonObjective.trim() || null,
+    status: activate ? "active" as const : "planned" as const,
+    start_date: startDateValue,
+    end_date: addDaysToIsoDate(startDateValue, 55),
+  };
+  if (existingSeason) {
+    unwrap(await client.from("seasons").update(seasonPayload).eq("id", existingSeason.id).eq("user_id", userId));
   } else {
-    unwrap(await client.from("seasons").insert({
-      user_id: userId,
-      name: "Temporada 1",
-      description: "Construir disciplina, avanzar en Ciencia de Datos y mejorar la salud.",
-      start_date: input.startDate,
-      end_date: endDateValue,
-      status: "active",
-    }));
+    unwrap(await client.from("seasons").insert({ user_id: userId, ...seasonPayload }));
   }
 
   unwrap(await client.from("habits").update({ active: false }).eq("user_id", userId).eq("habit_type", "non_negotiable"));
@@ -733,7 +756,7 @@ export async function completeOnboarding(
       await client.from("habits").select("id").eq("user_id", userId).eq("system_key", definition.systemKey).limit(1),
     )?.[0];
     if (existing) {
-      unwrap(await client.from("habits").update({ active: true, habit_type: "non_negotiable" }).eq("id", existing.id));
+      unwrap(await client.from("habits").update({ active: true, habit_type: "non_negotiable" }).eq("id", existing.id).eq("user_id", userId));
     } else {
       unwrap(await client.from("habits").insert({
         user_id: userId,
@@ -749,21 +772,82 @@ export async function completeOnboarding(
     }
   }
 
-  for (const subjectName of input.subjects.filter(Boolean)) {
-    await resolveSubject(client, userId, subjectName);
+  for (const subjectName of input.currentSubjects.filter(Boolean)) {
+    await ensureSubjectStatus(client, userId, subjectName, "studying");
+  }
+  for (const subjectName of input.plannedSubjects.filter(Boolean)) {
+    await ensureSubjectStatus(client, userId, subjectName, "pending");
   }
   if (input.firstTask.trim()) {
-    await createPlannerItem(client, userId, {
-      title: input.firstTask.trim(),
-      subject: input.subjects[0] || "General",
-      dueDate: null,
-      type: "Tarea",
-    });
+    const existingTask = unwrap<{ id: string }>(
+      await client.from("tasks").select("id").eq("user_id", userId).eq("title", input.firstTask.trim()).limit(1).maybeSingle(),
+    );
+    if (!existingTask) {
+      await createPlannerItem(client, userId, {
+        title: input.firstTask.trim(),
+        subject: input.currentSubjects[0] || "General",
+        dueDate: null,
+        type: "Tarea",
+      });
+    }
   }
+
+  const activity = input.scheduledActivity;
+  if (activity?.title.trim() && activity.startDate) {
+    const activitySubject = await ensureSubjectStatus(client, userId, activity.subject || activity.title, "studying");
+    const activityPayload = {
+      subject_id: activitySubject?.id ?? null,
+      title: activity.title.trim(),
+      description: activity.schedule.trim() || null,
+      task_type: "appointment",
+      priority: "medium",
+      status: "pending",
+      due_at: `${activity.startDate}T18:00:00-05:00`,
+    };
+    const existingActivity = unwrap<{ id: string }>(
+      await client.from("tasks").select("id").eq("user_id", userId).eq("title", activity.title.trim()).eq("task_type", "appointment").limit(1).maybeSingle(),
+    );
+    if (existingActivity) {
+      unwrap(await client.from("tasks").update(activityPayload).eq("id", existingActivity.id).eq("user_id", userId));
+    } else {
+      unwrap(await client.from("tasks").insert({ user_id: userId, ...activityPayload }));
+    }
+  }
+
+  const futureGoal = input.futureGoal;
+  if (futureGoal?.title.trim()) {
+    const reason = [futureGoal.reason.trim(), futureGoal.activationNote.trim()].filter(Boolean).join(" ");
+    const goalPayload = {
+      title: futureGoal.title.trim(),
+      reason: reason || null,
+      current_value: null,
+      target_value: futureGoal.targetValue,
+      unit: futureGoal.unit.trim() || null,
+      target_date: null,
+      status: "paused",
+    };
+    const existingGoal = unwrap<{ id: string }>(
+      await client.from("goals").select("id").eq("user_id", userId).eq("title", futureGoal.title.trim()).limit(1).maybeSingle(),
+    );
+    if (existingGoal) {
+      unwrap(await client.from("goals").update(goalPayload).eq("id", existingGoal.id).eq("user_id", userId));
+    } else {
+      unwrap(await client.from("goals").insert({ user_id: userId, ...goalPayload }));
+    }
+  }
+
   if (input.body && Object.values(input.body).some((value) => value !== null)) {
     await saveBodyMeasurement(client, userId, input.body);
   }
   if (input.screens && Object.values(input.screens).some((value) => value !== null)) {
     await saveDigitalWellbeing(client, userId, {}, input.screens);
   }
+}
+
+export async function saveOnboardingDraft(client: SupabaseClient, userId: string, input: SeasonSetupInput) {
+  await persistSeasonSetup(client, userId, input, false);
+}
+
+export async function completeOnboarding(client: SupabaseClient, userId: string, input: SeasonSetupInput) {
+  await persistSeasonSetup(client, userId, input, true);
 }

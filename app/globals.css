@@ -4745,6 +4745,7 @@ button:disabled {
 .onboarding-error { margin: 12px 0 0; border: 1px solid rgba(185,130,117,.35); border-radius: 9px; background: rgba(91,42,38,.18); color: #e5b5aa; padding: 10px 12px; font-size: 9px; }
 .onboarding-actions { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(255,255,255,.07); margin-top: 26px; padding-top: 20px; }
 .onboarding-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.onboarding-action-group { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 
 @media (max-width: 1050px) {
   .system-grid { grid-template-columns: 1fr 1fr; }
@@ -4766,6 +4767,8 @@ button:disabled {
   .onboarding-principles, .onboarding-choices, .onboarding-form-grid, .onboarding-summary { grid-template-columns: 1fr; }
   .onboarding-form-grid .field--wide { grid-column: auto; }
   .onboarding-actions { position: sticky; bottom: 0; background: rgba(14,24,39,.96); padding-bottom: 6px; }
+  .onboarding-action-group { width: 100%; }
+  .onboarding-action-group button { flex: 1 1 180px; }
 }
 
 @media (max-width: 430px) {

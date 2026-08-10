@@ -101,6 +101,32 @@ export type DigitalDay = DigitalWellbeing & {
   date: string;
 };
 
+export type SeasonSetupInput = {
+  seasonName: string;
+  seasonObjective: string;
+  purpose: string;
+  nonNegotiables: HabitKey[];
+  currentSubjects: string[];
+  plannedSubjects: string[];
+  firstTask: string;
+  startDate: string;
+  scheduledActivity: {
+    title: string;
+    subject: string;
+    startDate: string;
+    schedule: string;
+  } | null;
+  futureGoal: {
+    title: string;
+    targetValue: number | null;
+    unit: string;
+    reason: string;
+    activationNote: string;
+  } | null;
+  body: Omit<BodyMeasurement, "recordedOn"> | null;
+  screens: DigitalWellbeing | null;
+};
+
 export type StoredSkill = {
   id: string;
   name: string;
@@ -112,6 +138,7 @@ export type StoredSkill = {
 export type SeasonInfo = {
   id: string | null;
   name: string;
+  objective: string;
   status: "planned" | "active" | "completed";
   startDate: string | null;
   endDate: string | null;

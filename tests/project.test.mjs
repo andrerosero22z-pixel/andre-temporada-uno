@@ -186,7 +186,7 @@ test("keeps the public review route isolated from Supabase authentication", asyn
   assert.match(page, /if \(reviewMode\) return;/);
   assert.match(page, /Sin acceso a datos privados · solo lectura/);
   assert.match(page, /Vista previa: la temporada no se guardó ni accedió a datos privados/);
-  assert.match(page, /\(reviewMode \|\| dataStatus === "ready"\) && season\.status === "planned"/);
+  assert.match(page, /\(reviewMode \|\| dataStatus === "ready"\) && \(/);
 });
 
 test("keeps public review disabled by default behind a server-only environment flag", async () => {
@@ -224,10 +224,30 @@ test("exposes an explicit season setup from Today and System", async () => {
 
   assert.match(page, /Configurar Temporada 1/);
   assert.match(page, /Configurar y comenzar/);
+  assert.match(page, /Reconfigurar temporada/);
   assert.match(onboarding, /useState\(""\)/);
+  assert.match(onboarding, /Guardar preparación/);
   assert.match(onboarding, /Comenzar Temporada 1/);
-  assert.match(dashboard, /status: "active"/);
-  assert.match(dashboard, /addDaysToIsoDate\(input\.startDate, 55\)/);
+  assert.match(dashboard, /saveOnboardingDraft/);
+  assert.match(dashboard, /status: activate \? "active" as const : "planned" as const/);
+  assert.match(dashboard, /addDaysToIsoDate\(startDateValue, 55\)/);
+});
+
+test("saves a structured season draft without fake progress or privileged credentials", async () => {
+  const [onboarding, dashboard] = await Promise.all([
+    readFile(new URL("../components/season-onboarding.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/supabase/dashboard.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(onboarding, /Actividades o materias actuales/);
+  assert.match(onboarding, /Materias futuras/);
+  assert.match(onboarding, /Actividad con horario/);
+  assert.match(onboarding, /Meta futura/);
+  assert.match(dashboard, /ensureSubjectStatus\(client, userId, subjectName, "pending"\)/);
+  assert.match(dashboard, /task_type: "appointment"/);
+  assert.match(dashboard, /status: "paused"/);
+  assert.match(dashboard, /current_value: null/);
+  assert.doesNotMatch(dashboard, /service_role/i);
 });
 
 test("uses a compact five-action mobile navigation with a complete More panel", async () => {

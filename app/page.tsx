@@ -42,6 +42,7 @@ import {
   saveDigitalWellbeing,
   saveJournalEntry,
   saveMealLog,
+  saveOnboardingDraft,
   saveActivityReport,
   saveStudySession,
   setHabitCheckin,
@@ -484,7 +485,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [journalData, setJournalData] = useState<JournalEntry[]>([]);
   const [mealData, setMealData] = useState<MealLog[]>([]);
   const [profileSettings, setProfileSettings] = useState<ProfileSettings>({ onboardingCompleted: false, purpose: "", journalAiAllowed: false });
-  const [season, setSeason] = useState<SeasonInfo>({ id: null, name: "Temporada 1", status: "planned", startDate: null, endDate: null, week: null });
+  const [season, setSeason] = useState<SeasonInfo>({ id: null, name: "Temporada 1", objective: "", status: "planned", startDate: null, endDate: null, week: null });
   const [habitData, setHabitData] = useState<HabitOverview[]>([]);
   const [heatmapData, setHeatmapData] = useState<number[]>(Array(28).fill(0));
   const [digitalWellbeing, setDigitalWellbeing] = useState<DigitalWellbeing>({
@@ -676,7 +677,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       setProfileSettings((current) => ({ ...current, purpose: input.purpose.trim(), onboardingCompleted: true }));
       setSeason({
         id: "review-season",
-        name: "Temporada 1",
+        name: input.seasonName.trim() || "Temporada 1",
+        objective: input.seasonObjective.trim(),
         status: "active",
         startDate: input.startDate,
         endDate,
@@ -693,6 +695,35 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       await refreshData();
       setShowOnboarding(false);
       notify("Temporada 1 iniciada.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveSeasonDraft(input: OnboardingInput) {
+    if (reviewMode) {
+      const startDate = input.startDate || season.startDate;
+      setProfileSettings((current) => ({ ...current, purpose: input.purpose.trim(), onboardingCompleted: false }));
+      setSeason({
+        id: season.id || "review-season",
+        name: input.seasonName.trim() || season.name,
+        objective: input.seasonObjective.trim(),
+        status: "planned",
+        startDate,
+        endDate: startDate ? addDaysToIsoDate(startDate, 55) : null,
+        week: null,
+      });
+      setShowOnboarding(false);
+      notify("Vista previa: la preparación no se guardó ni accedió a datos privados.");
+      return;
+    }
+    if (!userId) throw new Error("Tu sesión expiró. Vuelve a entrar.");
+    setSaving(true);
+    try {
+      await saveOnboardingDraft(getSupabaseBrowserClient(), userId, input);
+      await refreshData();
+      setShowOnboarding(false);
+      notify("Preparación guardada. La temporada todavía no ha comenzado.");
     } finally {
       setSaving(false);
     }
@@ -2271,7 +2302,12 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <button className="ghost-action" type="button" onClick={signOut}>{reviewMode ? "Cerrar revisión" : "Cerrar sesión"}</button>
               </article>
               <article className="panel system-card system-card--wide"><p className="eyebrow">Brújula y propósito</p><h3>{profileSettings.purpose || "Por definir"}</h3><p>El propósito orienta decisiones; no se convierte en porcentaje ni afecta tu valor personal.</p></article>
-              <article className="panel system-card"><p className="eyebrow">Estado</p><h3>{season.status === "active" ? "Temporada activa" : season.status === "completed" ? "Temporada completada" : "En preparación"}</h3><dl><div><dt>Inicio</dt><dd>{season.status === "active" ? season.startDate : "Por confirmar"}</dd></div><div><dt>Final</dt><dd>{season.status === "active" ? season.endDate : "Por calcular"}</dd></div><div><dt>Semana</dt><dd>{season.week ?? "—"}</dd></div></dl></article>
+              <article className="panel system-card">
+                <p className="eyebrow">Estado</p>
+                <h3>{season.status === "active" ? "Temporada activa" : season.status === "completed" ? "Temporada completada" : "En preparación"}</h3>
+                <dl><div><dt>Inicio</dt><dd>{season.status === "active" ? season.startDate : season.startDate ? `${season.startDate} · propuesta` : "Por confirmar"}</dd></div><div><dt>Final</dt><dd>{season.status === "active" ? season.endDate : "Por calcular"}</dd></div><div><dt>Semana</dt><dd>{season.week ?? "—"}</dd></div></dl>
+                <button className="ghost-action" type="button" onClick={() => setShowOnboarding(true)}>{season.status === "planned" ? "Editar preparación" : "Reconfigurar temporada"}</button>
+              </article>
               <article className="panel system-card"><p className="eyebrow">No negociables</p><h3>{activeMinimumItems.length} de 3 activos</h3><p>{activeMinimumItems.length ? activeMinimumItems.map((item) => item.title).join(" · ") : "Todavía no has elegido tus mínimos."}</p></article>
               <article className="panel system-card"><p className="eyebrow">XP y dominio</p><h3>Dos medidas separadas</h3><p>El XP reconoce acciones, esfuerzo y constancia reportados. El dominio se construye gradualmente con prácticas y resultados. La tabla numérica definitiva aún está pendiente de tu aprobación.</p></article>
               <article className="panel system-card"><p className="eyebrow">Rachas</p><h3>Constancia, no castigo</h3><p>Un incumplimiento puede afectar una racha, pero nunca resta XP ni borra lo que ya construiste.</p></article>
@@ -2326,14 +2362,21 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         </button>
       </nav>
 
-      {(reviewMode || dataStatus === "ready") && season.status === "planned" && (
+      {(reviewMode || dataStatus === "ready") && (
         <SeasonOnboarding
           open={showOnboarding}
           displayName={reviewMode ? "Andre" : userLabel}
           initialPurpose={profileSettings.purpose}
+          initialSeasonName={season.name}
+          initialSeasonObjective={season.objective}
+          initialStartDate={season.startDate ?? ""}
+          initialCurrentSubjects={subjectData.filter((subject) => subject.status === "studying").map((subject) => subject.name)}
+          initialPlannedSubjects={subjectData.filter((subject) => subject.status === "pending").map((subject) => subject.name)}
+          initialNonNegotiables={(Object.keys(habitIds) as HabitKey[]).filter((key) => Boolean(habitIds[key])).slice(0, 3)}
           suggestedStartDate={clientClock?.today ?? ""}
           reviewMode={reviewMode}
           saving={saving}
+          onSaveDraft={saveSeasonDraft}
           onStart={startSeason}
           onClose={() => setShowOnboarding(false)}
         />
