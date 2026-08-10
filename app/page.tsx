@@ -8,14 +8,11 @@ import {
   CalendarClock,
   CalendarDays,
   Clock3,
-  Droplets,
-  Dumbbell,
   Eye,
   Settings2,
   FlagTriangleRight,
   Gamepad2,
   House,
-  ListChecks,
   Menu,
   MessageCircleMore,
   MoonStar,
@@ -45,6 +42,7 @@ import {
   saveOnboardingDraft,
   saveActivityReport,
   saveStudySession,
+  saveTrackingPlan,
   setHabitCheckin,
   setPlannerItemCompleted,
 } from "@/lib/supabase/dashboard";
@@ -70,6 +68,7 @@ import type {
   SubjectSummary,
   Task,
   TaskState,
+  TrackingPlan,
   View,
 } from "@/lib/types";
 import {
@@ -98,14 +97,6 @@ const mobileMoreNavItems: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "system", label: "Sistema", icon: Settings2 },
 ];
 
-const minimumItems: { key: HabitKey; icon: LucideIcon; title: string; detail: string }[] = [
-  { key: "prayer", icon: Sparkles, title: "Oración", detail: "Práctica breve" },
-  { key: "hygiene", icon: Droplets, title: "Higiene", detail: "Rutina completa" },
-  { key: "movement", icon: Dumbbell, title: "Movimiento", detail: "Movimiento elegido" },
-  { key: "planning", icon: ListChecks, title: "Plan del día", detail: "Revisar pendientes" },
-  { key: "sleep", icon: MoonStar, title: "Descanso", detail: "Dormir a tiempo" },
-];
-
 const digitalMetricCards: { key: keyof DigitalWellbeing; label: string; detail: string; icon: LucideIcon }[] = [
   { key: "screenTimeMinutes", label: "Celular total", detail: "Uso registrado hoy", icon: Smartphone },
   { key: "socialMediaMinutes", label: "Redes sociales", detail: "Feeds y mensajería", icon: MessageCircleMore },
@@ -127,6 +118,19 @@ const nutritionHabitSuggestions = [
   { title: "Comer sin pantalla", detail: "Una comida con atención", unit: "comida" },
   { title: "Registrar alimentación", detail: "Observar sin juzgar", unit: "registro" },
 ];
+
+function habitFrequencyLabel(habit: HabitOverview) {
+  const type = String(habit.frequency.type ?? "daily");
+  const start = typeof habit.frequency.start_date === "string" ? ` · desde ${habit.frequency.start_date}` : "";
+  const schedule = typeof habit.frequency.schedule === "string" && habit.frequency.schedule ? ` · ${habit.frequency.schedule}` : "";
+  const min = typeof habit.frequency.duration_min === "number" ? habit.frequency.duration_min : null;
+  const max = typeof habit.frequency.duration_max === "number" ? habit.frequency.duration_max : null;
+  const duration = min ? ` · ${min}${max ? `–${max}` : ""} min` : "";
+  if (type === "weekdays") return `${habit.goal} · lunes a viernes${schedule}${start}`;
+  if (type === "weekly") return `${habit.goal} por semana${duration}${schedule}${start}`;
+  if (type === "continuous_cycle") return `${habit.goal} por semana · ciclo continuo${duration}`;
+  return `${habit.goal} al día${schedule}${start}`;
+}
 
 const phases = [
   { label: "Diagnóstico", state: "pending" },
@@ -464,7 +468,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [clientClock, setClientClock] = useState<{ today: string; greeting: string } | null>(null);
   const [missionStatus, setMissionStatus] =
     useState<MissionStatus>("pending");
-  const [habits, setHabits] = useState<HabitState>({
+  const [, setHabits] = useState<HabitState>({
     prayer: false,
     hygiene: false,
     movement: false,
@@ -472,7 +476,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     sleep: false,
   });
   const [habitIds, setHabitIds] = useState<HabitIds>({});
-  const [modal, setModal] = useState<"quick" | "close" | "study" | "recovery" | "meal" | null>(null);
+  const [modal, setModal] = useState<"quick" | "close" | "study" | "recovery" | "meal" | "plan" | null>(null);
   const [toast, setToast] = useState("");
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
@@ -484,6 +488,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [bodyMeasurement, setBodyMeasurement] = useState<BodyMeasurement | null>(null);
   const [journalData, setJournalData] = useState<JournalEntry[]>([]);
   const [mealData, setMealData] = useState<MealLog[]>([]);
+  const [trackingPlans, setTrackingPlans] = useState<TrackingPlan[]>([]);
   const [profileSettings, setProfileSettings] = useState<ProfileSettings>({ onboardingCompleted: false, purpose: "", journalAiAllowed: false });
   const [season, setSeason] = useState<SeasonInfo>({ id: null, name: "Temporada 1", objective: "", status: "planned", startDate: null, endDate: null, week: null });
   const [habitData, setHabitData] = useState<HabitOverview[]>([]);
@@ -516,14 +521,11 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [mealType, setMealType] = useState("lunch");
   const [mealObservation, setMealObservation] = useState("");
   const [activityCategory, setActivityCategory] = useState("general");
+  const [habitForm, setHabitForm] = useState({ kind: "habit", frequency: "daily", weeklyTarget: "", durationMin: "", durationMax: "", startDate: "", schedule: "", details: "", difficultDay: "", optional: false, cycle: "" });
+  const [planForm, setPlanForm] = useState({ area: "nutrition", title: "", status: "active", startDate: "", endDate: "", instructions: "", notes: "" });
   const [studyMode, setStudyMode] = useState<"reading" | "guided" | "practice" | "independent" | "simulation">("practice");
   const [digitalForm, setDigitalForm] = useState({ screen: "", social: "", shortVideo: "", gaming: "", leisure: "", fast: "" });
-  const [bodyForm, setBodyForm] = useState({ weight: "", waist: "", fat: "", energy: "", sleep: "" });
-
-  const completedHabits = useMemo(
-    () => Object.values(habits).filter(Boolean).length,
-    [habits],
-  );
+  const [bodyForm, setBodyForm] = useState({ recordedOn: "", height: "", weight: "", waist: "", fat: "", energy: "", sleep: "", context: "" });
 
   const realAttributeGroups = useMemo(() => attributeGroups.map((group) => {
     const skills = group.skills.map((skill) => {
@@ -612,6 +614,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     { name: "Equilibrio personal", value: habitData.find((habit) => habit.title === "Oración")?.rate ?? null, detail: "Fe, descanso y ocio intencional", change: "Aún no calculado", color: "#7f9eb8" },
   ];
   const realBodyMetrics = [
+    { label: "Estatura", value: bodyMeasurement?.heightCm == null ? "Por registrar" : `${bodyMeasurement.heightCm} cm`, trend: bodyMeasurement?.context || "Línea base" },
     { label: "Peso", value: bodyMeasurement?.weightKg == null ? "Por registrar" : `${bodyMeasurement.weightKg} kg`, trend: "Línea base" },
     { label: "Cintura", value: bodyMeasurement?.waistCm == null ? "Por registrar" : `${bodyMeasurement.waistCm} cm`, trend: "Línea base" },
     { label: "Grasa estimada", value: bodyMeasurement?.bodyFatPercent == null ? "Por registrar" : `${bodyMeasurement.bodyFatPercent}%`, trend: "Meta personal" },
@@ -636,7 +639,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       active: index === 0,
     };
   }), [clientClock, tasks]);
-  const activeMinimumItems = minimumItems.filter((item) => Boolean(habitIds[item.key]));
+  const activeMinimumItems = habitData.filter((habit) => habit.habitType === "non_negotiable" && !habit.optional);
+  const completedHabits = activeMinimumItems.filter((habit) => habit.week.at(-1) === true).length;
   const seasonLabel = season.status === "active" && season.week
     ? `${season.name} · Semana ${season.week}`
     : "En preparación";
@@ -653,6 +657,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     setBodyMeasurement(data.bodyMeasurement);
     setJournalData(data.journalEntries);
     setMealData(data.meals);
+    setTrackingPlans(data.trackingPlans);
     setProfileSettings(data.profile);
     setSeason(data.season);
     setHabitData(data.habitRows);
@@ -820,31 +825,6 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     }
   }
 
-  async function toggleHabit(key: HabitKey) {
-    if (reviewMode) {
-      notify("Modo revisión: los cambios están bloqueados.");
-      return;
-    }
-    const habitId = habitIds[key];
-    if (!userId || !habitId) {
-      notify("El hábito todavía no está listo. Recarga e inténtalo de nuevo.");
-      return;
-    }
-    const completed = !habits[key];
-    setHabits((current) => ({ ...current, [key]: completed }));
-    try {
-      await setHabitCheckin(
-        getSupabaseBrowserClient(),
-        userId,
-        habitId,
-        completed,
-      );
-    } catch {
-      setHabits((current) => ({ ...current, [key]: !completed }));
-      notify("No se pudo guardar el no negociable. Inténtalo otra vez.");
-    }
-  }
-
   async function toggleTask(id: string) {
     if (reviewMode) {
       notify("Modo revisión: los cambios están bloqueados.");
@@ -910,10 +890,23 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           notes: note.trim(),
         });
       } else if (entryType === "Hábito") {
+        const weeklyTarget = Math.max(1, Number(habitForm.weeklyTarget) || Number(targetValue) || 1);
+        const frequency = habitForm.frequency === "weekly"
+          ? { type: "weekly", target: weeklyTarget, duration_min: numberOrNull(habitForm.durationMin), duration_max: numberOrNull(habitForm.durationMax), start_date: habitForm.startDate || null, schedule: habitForm.schedule.trim() || null }
+          : habitForm.frequency === "weekdays"
+            ? { type: "weekdays", days: [1, 2, 3, 4, 5], start_date: habitForm.startDate || null, schedule: habitForm.schedule.trim() || null }
+            : habitForm.frequency === "continuous_cycle"
+              ? { type: "continuous_cycle", target: weeklyTarget, optional_target: habitForm.optional ? weeklyTarget + 1 : null, rotation: habitForm.cycle.split(",").map((item) => item.trim()).filter(Boolean), carry_over: true, duration_min: numberOrNull(habitForm.durationMin), duration_max: numberOrNull(habitForm.durationMax) }
+              : { type: "daily", start_date: habitForm.startDate || null, schedule: habitForm.schedule.trim() || null };
         await createHabit(client, userId, {
           title: note.trim(),
-          targetAmount: Math.max(1, Number(targetValue) || 1),
+          habitType: habitForm.kind === "non_negotiable" ? "non_negotiable" : "habit",
+          targetAmount: habitForm.frequency === "daily" || habitForm.frequency === "weekdays" ? Math.max(1, Number(targetValue) || 1) : weeklyTarget,
           unit: unit.trim() || "vez",
+          frequency,
+          description: habitForm.details,
+          difficultDayVersion: habitForm.difficultDay,
+          optional: habitForm.optional,
         });
       } else if (entryType === "Meta") {
         await createGoal(client, userId, {
@@ -926,11 +919,14 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         });
       } else if (entryType === "Medición") {
         await saveBodyMeasurement(client, userId, {
+          recordedOn: bodyForm.recordedOn || undefined,
+          heightCm: numberOrNull(bodyForm.height),
           weightKg: numberOrNull(bodyForm.weight),
           waistCm: numberOrNull(bodyForm.waist),
           bodyFatPercent: numberOrNull(bodyForm.fat),
           energyLevel: numberOrNull(bodyForm.energy),
           sleepHours: numberOrNull(bodyForm.sleep),
+          context: bodyForm.context,
         });
       } else if (entryType === "Pantallas") {
         await saveDigitalWellbeing(client, userId, digitalHabitIds, {
@@ -960,9 +956,40 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       setTargetValue("");
       setUnit("");
       setDuration("");
+      setHabitForm({ kind: "habit", frequency: "daily", weeklyTarget: "", durationMin: "", durationMax: "", startDate: "", schedule: "", details: "", difficultDay: "", optional: false, cycle: "" });
       notify(`${entryType} guardado correctamente.`);
     } catch (error) {
       notify(error instanceof Error ? error.message : "No se pudo guardar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePlan() {
+    if (reviewMode) {
+      notify("Modo revisión: no se guardan datos.");
+      return;
+    }
+    if (!planForm.title.trim()) {
+      notify("Escribe un nombre para el plan.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveTrackingPlan(getSupabaseBrowserClient(), userId, {
+        area: planForm.area as TrackingPlan["area"],
+        title: planForm.title,
+        status: planForm.status as TrackingPlan["status"],
+        startDate: planForm.startDate || null,
+        endDate: planForm.endDate || null,
+        instructions: planForm.instructions.split("\n").map((item) => item.trim()).filter(Boolean),
+        notes: planForm.notes,
+      });
+      await refreshData();
+      setModal(null);
+      notify("Plan de observación guardado.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo guardar el plan.");
     } finally {
       setSaving(false);
     }
@@ -1315,16 +1342,16 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <span>{completedHabits}/{activeMinimumItems.length}</span>
                 </div>
                 <div className="minimum-list">
-                  {activeMinimumItems.map(({ key, icon: Icon, title, detail }) => {
-                    const done = habits[key];
+                  {activeMinimumItems.map((item) => {
+                    const done = item.week.at(-1) === true;
                     return (
                       <button
-                        key={key}
+                        key={item.id}
                         className={done ? "minimum minimum--done" : "minimum"}
-                        onClick={() => toggleHabit(key)}
+                        onClick={() => toggleTrackedHabit(item)}
                       >
-                        <span className="minimum__icon"><Icon aria-hidden="true" size={18} strokeWidth={1.8} /></span>
-                        <span><strong>{title}</strong><small>{detail}</small></span>
+                        <span className="minimum__icon"><Sparkles aria-hidden="true" size={18} strokeWidth={1.8} /></span>
+                        <span><strong>{item.title}</strong><small>{item.difficultDayVersion || item.description || item.goal}</small></span>
                         <i>{done ? "✓" : ""}</i>
                       </button>
                     );
@@ -1940,7 +1967,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 {habitData.filter((habit) => habit.habitType === "non_negotiable").map((item) => (
                   <article key={item.id}>
                     <div><span>◆</span><strong>{item.title}</strong><b>{item.rate == null ? "—" : `${item.rate}%`}</b></div>
-                    <small>Mínimo diario</small>
+                    <small>{item.difficultDayVersion ? `Día difícil: ${item.difficultDayVersion}` : habitFrequencyLabel(item)}</small>
                     <p>{item.streak == null ? "Todavía sin datos." : `Racha actual: ${item.streak} días.`}</p>
                     {item.rate == null ? <div className="uncalculated-bar"><span>Aún no calculado</span></div> : <ProgressBar value={item.rate} accent={item.rate < 75 ? "#b98275" : "#d3ac66"} small />}
                   </article>
@@ -1974,7 +2001,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               {habitData.map((habit) => (
                 <article className="habit-row" key={habit.id}>
                   <strong>{habit.title}</strong>
-                  <span>{habit.goal}</span>
+                  <span>{habitFrequencyLabel(habit)}{habit.optional ? " · opcional" : ""}</span>
                   <div className="week-dots" aria-label={`Últimos 7 días de ${habit.title}`}>
                     {habit.week.map((done, index) => (
                       <i className={done === null ? "week-dot week-dot--unknown" : done ? "week-dot week-dot--done" : "week-dot"} key={index}>
@@ -2011,7 +2038,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <p className="eyebrow">Nutrición</p>
                 <h2>Alimenta el progreso.</h2>
                 <p>Planifica, registra y descubre qué puedes sostener. Sin dietas inventadas ni días “perfectos”.</p>
-                <div className="nutrition-actions"><button className="primary-action" onClick={() => setModal("meal")}>Registrar comida</button><button className="secondary-action" onClick={() => prepareNutritionHabit()}>+ Hábito</button></div>
+                <div className="nutrition-actions"><button className="primary-action" onClick={() => setModal("meal")}>Registrar comida</button><button className="secondary-action" onClick={() => prepareNutritionHabit()}>+ Hábito</button><button className="secondary-action" onClick={() => { setPlanForm((current) => ({ ...current, area: "nutrition" })); setModal("plan"); }}>Plan de observación</button></div>
               </div>
               <div className="nutrition-hero__mark" aria-hidden="true">
                 <span><Utensils size={32} strokeWidth={1.5} /></span>
@@ -2019,6 +2046,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <small>constancia</small>
               </div>
             </section>
+
+            {trackingPlans.filter((plan) => plan.area === "nutrition").map((plan) => <section className="meal-log panel" key={plan.id}><div className="section-heading"><div><p className="eyebrow">{plan.status === "active" ? "En observación" : "Planificado"}</p><h3>{plan.title}</h3></div><span>{plan.startDate ?? "Sin fecha"}{plan.endDate ? ` → ${plan.endDate}` : ""}</span></div><p>{plan.notes}</p>{plan.instructions.length > 0 && <ul>{plan.instructions.map((item) => <li key={item}>{item}</li>)}</ul>}</section>)}
 
             <section className="nutrition-kpis">
               <article className="nutrition-kpi panel"><small>Hábitos activos</small><strong>{nutritionHabits.length}</strong><span>solo registros de nutrición</span></article>
@@ -2106,9 +2135,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <p className="eyebrow">Atención</p>
                 <h2>Entrena tu atención.</h2>
                 <p>Mide celular, estímulos rápidos, ocio elegido y bloques sin pantallas.</p>
-                <button className="primary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>
-                  Registrar el día
-                </button>
+                <div className="nutrition-actions"><button className="primary-action" onClick={() => { setEntryType("Pantallas"); setModal("quick"); }}>Registrar el día</button><button className="secondary-action" onClick={() => { setPlanForm((current) => ({ ...current, area: "attention" })); setModal("plan"); }}>Planificar línea base</button></div>
               </div>
               <div className="attention-orbit" aria-hidden="true">
                 <span className="attention-orbit__ring" />
@@ -2117,6 +2144,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 <small>{attentionControlToday == null ? "Sin datos" : "% de uso fuera de estímulos rápidos"}</small>
               </div>
             </section>
+
+            {trackingPlans.filter((plan) => plan.area === "attention").map((plan) => <section className="attention-protocol panel" key={plan.id}><div><p className="eyebrow">{plan.status === "planned" ? "Por registrar" : plan.status}</p><h3>{plan.title}</h3><p>{plan.notes}</p><small>{plan.startDate ?? "Sin fecha"}{plan.endDate ? ` → ${plan.endDate}` : ""}</small></div></section>)}
 
             <div className="progress-tabs" role="tablist" aria-label="Secciones de atención">
               <button className={attentionTab === "overview" ? "is-active" : ""} onClick={() => setAttentionTab("overview")}>Seguimiento</button>
@@ -2476,9 +2505,20 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             </div>
           )}
           {entryType === "Hábito" && (
-            <div className="field-row">
-              <label className="field"><span>Meta diaria</span><input type="number" min="1" value={targetValue} onChange={(event) => setTargetValue(event.target.value)} placeholder="1" /></label>
-              <label className="field"><span>Unidad</span><input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="vez, min, páginas…" /></label>
+            <div className="onboarding-form-grid">
+              <label className="field"><span>Tipo</span><select value={habitForm.kind} onChange={(event) => setHabitForm((current) => ({ ...current, kind: event.target.value }))}><option value="habit">Hábito</option><option value="non_negotiable">No negociable</option></select></label>
+              <label className="field"><span>Frecuencia</span><select value={habitForm.frequency} onChange={(event) => setHabitForm((current) => ({ ...current, frequency: event.target.value }))}><option value="daily">Diario</option><option value="weekdays">Lunes a viernes</option><option value="weekly">Objetivo semanal</option><option value="continuous_cycle">Ciclo continuo</option></select></label>
+              {(habitForm.frequency === "daily" || habitForm.frequency === "weekdays") && <label className="field"><span>Objetivo por día</span><input type="number" min="1" value={targetValue} onChange={(event) => setTargetValue(event.target.value)} placeholder="1" /></label>}
+              {(habitForm.frequency === "weekly" || habitForm.frequency === "continuous_cycle") && <label className="field"><span>Sesiones por semana</span><input type="number" min="1" value={habitForm.weeklyTarget} onChange={(event) => setHabitForm((current) => ({ ...current, weeklyTarget: event.target.value }))} placeholder="Por definir" /></label>}
+              <label className="field"><span>Unidad</span><input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="sesión, rutina, registro…" /></label>
+              <label className="field"><span>Duración mínima (min)</span><input type="number" min="1" value={habitForm.durationMin} onChange={(event) => setHabitForm((current) => ({ ...current, durationMin: event.target.value }))} placeholder="Opcional" /></label>
+              <label className="field"><span>Duración máxima (min)</span><input type="number" min="1" value={habitForm.durationMax} onChange={(event) => setHabitForm((current) => ({ ...current, durationMax: event.target.value }))} placeholder="Opcional" /></label>
+              <label className="field"><span>Fecha de inicio</span><input type="date" value={habitForm.startDate} onChange={(event) => setHabitForm((current) => ({ ...current, startDate: event.target.value }))} /></label>
+              <label className="field"><span>Horario o regla</span><input value={habitForm.schedule} onChange={(event) => setHabitForm((current) => ({ ...current, schedule: event.target.value }))} placeholder="Opcional" /></label>
+              {habitForm.frequency === "continuous_cycle" && <label className="field field--wide"><span>Secuencia del ciclo</span><input value={habitForm.cycle} onChange={(event) => setHabitForm((current) => ({ ...current, cycle: event.target.value }))} placeholder="Paso 1, Paso 2, Paso 3…" /></label>}
+              <label className="field field--wide"><span>Qué cuenta</span><textarea value={habitForm.details} onChange={(event) => setHabitForm((current) => ({ ...current, details: event.target.value }))} placeholder="Criterios observables, sin castigos ni suposiciones" /></label>
+              {habitForm.kind === "non_negotiable" && <label className="field field--wide"><span>Versión de día difícil</span><input value={habitForm.difficultDay} onChange={(event) => setHabitForm((current) => ({ ...current, difficultDay: event.target.value }))} placeholder="Mínimo realista" /></label>}
+              <label className="field field--wide"><span><input type="checkbox" checked={habitForm.optional} onChange={(event) => setHabitForm((current) => ({ ...current, optional: event.target.checked }))} /> Oportunidad adicional opcional; no cuenta como incumplimiento</span></label>
             </div>
           )}
           {entryType === "Meta" && (
@@ -2495,11 +2535,14 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           )}
           {entryType === "Medición" && (
             <div className="metric-form-grid">
+              <label className="field"><span>Fecha de medición</span><input type="date" value={bodyForm.recordedOn} onChange={(event) => setBodyForm((current) => ({ ...current, recordedOn: event.target.value }))} /></label>
+              <label className="field"><span>Estatura (cm)</span><input type="number" step=".1" value={bodyForm.height} onChange={(event) => setBodyForm((current) => ({ ...current, height: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Peso (kg)</span><input type="number" step=".1" value={bodyForm.weight} onChange={(event) => setBodyForm((current) => ({ ...current, weight: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Cintura (cm)</span><input type="number" step=".1" value={bodyForm.waist} onChange={(event) => setBodyForm((current) => ({ ...current, waist: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Grasa estimada (%)</span><input type="number" step=".1" value={bodyForm.fat} onChange={(event) => setBodyForm((current) => ({ ...current, fat: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Energía (1–5)</span><input type="number" min="1" max="5" value={bodyForm.energy} onChange={(event) => setBodyForm((current) => ({ ...current, energy: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Sueño (horas)</span><input type="number" step=".1" min="0" value={bodyForm.sleep} onChange={(event) => setBodyForm((current) => ({ ...current, sleep: event.target.value }))} placeholder="Por registrar" /></label>
+              <label className="field field--wide"><span>Contexto</span><textarea value={bodyForm.context} onChange={(event) => setBodyForm((current) => ({ ...current, context: event.target.value }))} placeholder="Ej. fecha aproximada o condiciones de la medición" /></label>
             </div>
           )}
           {entryType === "Pantallas" && (
@@ -2526,6 +2569,21 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               {saving ? "Guardando…" : "Guardar registro"}
             </button>
           </div>
+        </Modal>
+      )}
+
+      {modal === "plan" && (
+        <Modal title="Plan de observación" eyebrow="Medir antes de concluir" onClose={() => setModal(null)}>
+          <div className="onboarding-form-grid">
+            <label className="field"><span>Área</span><select value={planForm.area} onChange={(event) => setPlanForm((current) => ({ ...current, area: event.target.value }))}><option value="nutrition">Nutrición</option><option value="attention">Atención</option><option value="physical">Físico</option><option value="study">Estudio</option><option value="general">General</option></select></label>
+            <label className="field"><span>Estado</span><select value={planForm.status} onChange={(event) => setPlanForm((current) => ({ ...current, status: event.target.value }))}><option value="planned">Planificado</option><option value="active">Activo</option><option value="paused">Pausado</option><option value="completed">Completado</option></select></label>
+            <label className="field field--wide"><span>Nombre</span><input value={planForm.title} onChange={(event) => setPlanForm((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Línea base de siete días" /></label>
+            <label className="field"><span>Inicio</span><input type="date" value={planForm.startDate} onChange={(event) => setPlanForm((current) => ({ ...current, startDate: event.target.value }))} /></label>
+            <label className="field"><span>Final</span><input type="date" value={planForm.endDate} onChange={(event) => setPlanForm((current) => ({ ...current, endDate: event.target.value }))} /></label>
+            <label className="field field--wide"><span>Qué observar</span><textarea value={planForm.instructions} onChange={(event) => setPlanForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Una indicación por línea" /></label>
+            <label className="field field--wide"><span>Notas y límites</span><textarea value={planForm.notes} onChange={(event) => setPlanForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Qué no se concluirá ni exigirá durante esta fase" /></label>
+          </div>
+          <div className="modal__actions"><button className="ghost-action" onClick={() => setModal(null)}>Cancelar</button><button className="primary-action modal-primary" disabled={saving} onClick={savePlan}>{saving ? "Guardando…" : "Guardar plan"}</button></div>
         </Modal>
       )}
 
@@ -2603,7 +2661,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             Reduce la carga y elige una acción pequeña para retomar. Comer, dormir y recuperarte siguen siendo necesidades básicas, nunca premios.
           </p>
           <div className="recovery-plan">
-            {activeMinimumItems.map((item) => <div key={item.key}><span>◇</span><strong>{item.title}</strong><small>{item.detail}</small></div>)}
+            {activeMinimumItems.map((item) => <div key={item.id}><span>◇</span><strong>{item.title}</strong><small>{item.difficultDayVersion || item.description || item.goal}</small></div>)}
             {activeMinimumItems.length === 0 && <div><span>↺</span><strong>Una acción pequeña</strong><small>Elígela según tu situación real</small></div>}
           </div>
           <label className="field">

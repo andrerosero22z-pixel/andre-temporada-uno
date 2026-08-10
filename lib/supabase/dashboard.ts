@@ -18,6 +18,7 @@ import type {
   SubjectSummary,
   Task,
   TaskState,
+  TrackingPlan,
 } from "@/lib/types";
 import { addDaysToIsoDate, dateIsoInAppTimeZone, seasonWeekFromDate } from "@/lib/time";
 
@@ -78,6 +79,10 @@ type HabitRow = {
   target_amount: number;
   unit: string;
   system_key?: string | null;
+  frequency: Record<string, unknown>;
+  description: string | null;
+  difficult_day_version: string | null;
+  is_optional: boolean;
 };
 type HabitLogRow = {
   habit_id: string;
@@ -96,11 +101,23 @@ type GoalRow = {
 };
 type BodyRow = {
   recorded_on: string;
+  height_cm: number | null;
   weight_kg: number | null;
   body_fat_percent: number | null;
   waist_cm: number | null;
   energy_level: number | null;
   sleep_hours: number | null;
+  measurement_context: string | null;
+};
+type TrackingPlanRow = {
+  id: string;
+  area: TrackingPlan["area"];
+  title: string;
+  status: TrackingPlan["status"];
+  start_date: string | null;
+  end_date: string | null;
+  instructions: unknown;
+  notes: string | null;
 };
 type ReviewRow = {
   id: string;
@@ -256,6 +273,10 @@ function buildHabitData(habits: HabitRow[], logs: HabitLogRow[]) {
       title: habit.title,
       habitType: habit.habit_type,
       goal: habit.target_amount > 0 ? `${habit.target_amount} ${habit.unit}` : "Registrar",
+      description: habit.description ?? "",
+      difficultDayVersion: habit.difficult_day_version ?? "",
+      optional: habit.is_optional,
+      frequency: habit.frequency ?? { type: "daily" },
       streak,
       rate: recordedDays >= 7 ? Math.round((completed / recordedDays) * 100) : null,
       recordedDays,
@@ -289,13 +310,14 @@ export async function loadDashboardData(
     profileResult,
     seasonResult,
     mealsResult,
+    trackingPlansResult,
   ] = await Promise.all([
     client.from("subjects").select("id, name, status").eq("user_id", userId).order("name"),
     client.from("tasks").select("id, title, subject_id, task_type, status, due_at").eq("user_id", userId).neq("status", "cancelled").order("due_at", { ascending: true, nullsFirst: false }),
     client.from("evaluations").select("id, title, subject_id, evaluation_type, status, evaluation_at").eq("user_id", userId).neq("status", "cancelled").order("evaluation_at"),
-    client.from("habits").select("id, title, habit_type, target_amount, unit, system_key").eq("user_id", userId).eq("active", true),
+    client.from("habits").select("id, title, habit_type, target_amount, unit, system_key, frequency, description, difficult_day_version, is_optional").eq("user_id", userId).eq("active", true),
     client.from("goals").select("id, title, reason, current_value, target_value, unit, target_date").eq("user_id", userId).eq("status", "active").order("created_at"),
-    client.from("body_measurements").select("recorded_on, weight_kg, body_fat_percent, waist_cm, energy_level, sleep_hours").eq("user_id", userId).order("recorded_on", { ascending: false }).limit(1),
+    client.from("body_measurements").select("recorded_on, height_cm, weight_kg, body_fat_percent, waist_cm, energy_level, sleep_hours, measurement_context").eq("user_id", userId).order("recorded_on", { ascending: false }).limit(1),
     client.from("journal_entries").select("id, entry_date, content, mood").eq("user_id", userId).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(20),
     client.from("skills").select("id, name, current_xp, mastery_percent").eq("user_id", userId),
     client.from("skill_evidence").select("skill_id").eq("user_id", userId),
@@ -303,6 +325,7 @@ export async function loadDashboardData(
     client.from("profiles").select("coins, purpose, onboarding_completed, journal_ai_allowed").eq("user_id", userId).maybeSingle(),
     client.from("seasons").select("id, name, description, status, start_date, end_date").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("meal_logs").select("id, meal_date, meal_type, description, observation").eq("user_id", userId).order("meal_date", { ascending: false }).order("created_at", { ascending: false }).limit(12),
+    client.from("tracking_plans").select("id, area, title, status, start_date, end_date, instructions, notes").eq("user_id", userId).order("start_date", { ascending: true, nullsFirst: false }),
   ]);
 
   const subjects = unwrap<SubjectRow[]>(subjectsResult) ?? [];
@@ -369,11 +392,13 @@ export async function loadDashboardData(
   const bodyMeasurement: BodyMeasurement | null = latestBody
     ? {
         recordedOn: latestBody.recorded_on,
+        heightCm: latestBody.height_cm === null ? null : Number(latestBody.height_cm),
         weightKg: latestBody.weight_kg === null ? null : Number(latestBody.weight_kg),
         bodyFatPercent: latestBody.body_fat_percent === null ? null : Number(latestBody.body_fat_percent),
         waistCm: latestBody.waist_cm === null ? null : Number(latestBody.waist_cm),
         energyLevel: latestBody.energy_level,
         sleepHours: latestBody.sleep_hours === null ? null : Number(latestBody.sleep_hours),
+        context: latestBody.measurement_context ?? "",
       }
     : null;
   const journalEntries: JournalEntry[] = (unwrap<ReviewRow[]>(reviewsResult) ?? [])
@@ -420,6 +445,16 @@ export async function loadDashboardData(
     description: meal.description,
     observation: meal.observation ?? "",
   }));
+  const trackingPlans: TrackingPlan[] = (unwrap<TrackingPlanRow[]>(trackingPlansResult) ?? []).map((plan) => ({
+    id: plan.id,
+    area: plan.area,
+    title: plan.title,
+    status: plan.status,
+    startDate: plan.start_date,
+    endDate: plan.end_date,
+    instructions: Array.isArray(plan.instructions) ? plan.instructions.filter((item): item is string => typeof item === "string") : [],
+    notes: plan.notes ?? "",
+  }));
 
   return {
     tasks,
@@ -431,6 +466,7 @@ export async function loadDashboardData(
     profile,
     season,
     meals,
+    trackingPlans,
     totalXp: Math.max(0, totalXp),
     coins: profileRow?.coins ?? 0,
     ...buildHabitData(habits, logs),
@@ -558,18 +594,44 @@ export async function saveDigitalWellbeing(
 export async function createHabit(
   client: SupabaseClient,
   userId: string,
-  input: { title: string; targetAmount: number; unit: string },
+  input: {
+    title: string;
+    habitType: "habit" | "non_negotiable";
+    targetAmount: number;
+    unit: string;
+    frequency: Record<string, unknown>;
+    description: string;
+    difficultDayVersion: string;
+    optional: boolean;
+  },
 ) {
-  unwrap(await client.from("habits").insert({
+  if (input.habitType === "non_negotiable") {
+    const activeMinimums = unwrap<Array<{ id: string }>>(
+      await client.from("habits").select("id").eq("user_id", userId).eq("habit_type", "non_negotiable").eq("active", true),
+    ) ?? [];
+    if (activeMinimums.length >= 3) throw new Error("Solo puedes tener tres no negociables activos.");
+  }
+  const existing = unwrap<{ id: string }>(
+    await client.from("habits").select("id").eq("user_id", userId).eq("title", input.title.trim()).limit(1).maybeSingle(),
+  );
+  const payload = {
     user_id: userId,
-    title: input.title,
-    habit_type: "habit",
-    frequency: { type: "daily" },
+    title: input.title.trim(),
+    habit_type: input.habitType,
+    frequency: input.frequency,
     target_amount: input.targetAmount,
     unit: input.unit,
+    description: input.description.trim() || null,
+    difficult_day_version: input.difficultDayVersion.trim() || null,
+    is_optional: input.optional,
     active: true,
     xp_reward: 0,
-  }));
+  };
+  if (existing) {
+    unwrap(await client.from("habits").update(payload).eq("id", existing.id).eq("user_id", userId));
+  } else {
+    unwrap(await client.from("habits").insert(payload));
+  }
 }
 
 export async function createGoal(
@@ -592,17 +654,43 @@ export async function createGoal(
 export async function saveBodyMeasurement(
   client: SupabaseClient,
   userId: string,
-  input: Omit<BodyMeasurement, "recordedOn">,
+  input: Omit<BodyMeasurement, "recordedOn"> & { recordedOn?: string },
 ) {
   unwrap(await client.from("body_measurements").upsert({
     user_id: userId,
-    recorded_on: localDate(),
+    recorded_on: input.recordedOn || localDate(),
+    height_cm: input.heightCm,
     weight_kg: input.weightKg,
     body_fat_percent: input.bodyFatPercent,
     waist_cm: input.waistCm,
     energy_level: input.energyLevel,
     sleep_hours: input.sleepHours,
+    measurement_context: input.context.trim() || null,
   }, { onConflict: "user_id,recorded_on" }));
+}
+
+export async function saveTrackingPlan(
+  client: SupabaseClient,
+  userId: string,
+  input: Omit<TrackingPlan, "id">,
+) {
+  const existing = unwrap<{ id: string }>(
+    await client.from("tracking_plans").select("id").eq("user_id", userId).eq("title", input.title.trim()).limit(1).maybeSingle(),
+  );
+  const payload = {
+    area: input.area,
+    title: input.title.trim(),
+    status: input.status,
+    start_date: input.startDate,
+    end_date: input.endDate,
+    instructions: input.instructions,
+    notes: input.notes.trim() || null,
+  };
+  if (existing) {
+    unwrap(await client.from("tracking_plans").update(payload).eq("id", existing.id).eq("user_id", userId));
+  } else {
+    unwrap(await client.from("tracking_plans").insert({ user_id: userId, ...payload }));
+  }
 }
 
 export async function saveJournalEntry(

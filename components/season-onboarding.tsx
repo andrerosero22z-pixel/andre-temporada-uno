@@ -62,7 +62,7 @@ export function SeasonOnboarding({
   const [startDate, setStartDate] = useState(initialStartDate);
   const [scheduledActivity, setScheduledActivity] = useState({ title: "", subject: "", startDate: "", schedule: "" });
   const [futureGoal, setFutureGoal] = useState({ title: "", target: "", unit: "", reason: "", activation: "" });
-  const [body, setBody] = useState({ weight: "", waist: "", fat: "", energy: "", sleep: "" });
+  const [body, setBody] = useState({ height: "", weight: "", waist: "", fat: "", energy: "", sleep: "", context: "" });
   const [screens, setScreens] = useState({ total: "", social: "", shortVideo: "", gaming: "", leisure: "", fast: "" });
   const [error, setError] = useState("");
   const steps = useMemo(() => ["Cómo funciona", "Tus mínimos", "Punto de partida", "Confirmar"], []);
@@ -98,11 +98,13 @@ export function SeasonOnboarding({
           activationNote: futureGoal.activation,
         } : null,
         body: {
+          heightCm: numberOrNull(body.height),
           weightKg: numberOrNull(body.weight),
           waistCm: numberOrNull(body.waist),
           bodyFatPercent: numberOrNull(body.fat),
           energyLevel: numberOrNull(body.energy),
           sleepHours: numberOrNull(body.sleep),
+          context: body.context,
         },
         screens: {
           screenTimeMinutes: numberOrNull(screens.total),
@@ -180,10 +182,12 @@ export function SeasonOnboarding({
             <label className="field field--wide"><span>Por qué importa</span><textarea value={futureGoal.reason} onChange={(event) => setFutureGoal({ ...futureGoal, reason: event.target.value })} placeholder="Razón personal de la meta" /></label>
             <label className="field field--wide"><span>Cuándo se activará</span><input value={futureGoal.activation} onChange={(event) => setFutureGoal({ ...futureGoal, activation: event.target.value })} placeholder="Ej. Al comenzar el próximo semestre" /></label>
             <div className="onboarding-subgroup field--wide"><strong>Línea base física</strong><small>Déjalo vacío si aún no tienes mediciones.</small></div>
+            <label className="field"><span>Estatura (cm)</span><input type="number" step=".1" value={body.height} onChange={(event) => setBody({ ...body, height: event.target.value })} placeholder="Por registrar" /></label>
             <label className="field"><span>Peso (kg)</span><input type="number" step=".1" value={body.weight} onChange={(event) => setBody({ ...body, weight: event.target.value })} placeholder="Por registrar" /></label>
             <label className="field"><span>Cintura (cm)</span><input type="number" step=".1" value={body.waist} onChange={(event) => setBody({ ...body, waist: event.target.value })} placeholder="Por registrar" /></label>
             <label className="field"><span>Grasa estimada (%)</span><input type="number" step=".1" value={body.fat} onChange={(event) => setBody({ ...body, fat: event.target.value })} placeholder="Por registrar" /></label>
             <label className="field"><span>Energía (1–5)</span><input type="number" min="1" max="5" value={body.energy} onChange={(event) => setBody({ ...body, energy: event.target.value })} placeholder="Por registrar" /></label>
+            <label className="field field--wide"><span>Contexto de la medición</span><input value={body.context} onChange={(event) => setBody({ ...body, context: event.target.value })} placeholder="Opcional" /></label>
             <div className="onboarding-subgroup field--wide"><strong>Línea base de pantallas</strong><small>Minutos aproximados; no es un juicio moral.</small></div>
             <label className="field"><span>Celular total</span><input type="number" min="0" value={screens.total} onChange={(event) => setScreens({ ...screens, total: event.target.value })} placeholder="Por registrar" /></label>
             <label className="field"><span>Redes</span><input type="number" min="0" value={screens.social} onChange={(event) => setScreens({ ...screens, social: event.target.value })} placeholder="Por registrar" /></label>

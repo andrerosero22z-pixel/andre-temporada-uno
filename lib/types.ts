@@ -63,11 +63,13 @@ export type GoalRecord = {
 
 export type BodyMeasurement = {
   recordedOn: string;
+  heightCm: number | null;
   weightKg: number | null;
   bodyFatPercent: number | null;
   waistCm: number | null;
   energyLevel: number | null;
   sleepHours: number | null;
+  context: string;
 };
 
 export type JournalEntry = {
@@ -82,10 +84,25 @@ export type HabitOverview = {
   title: string;
   habitType: "habit" | "non_negotiable";
   goal: string;
+  description: string;
+  difficultDayVersion: string;
+  optional: boolean;
+  frequency: Record<string, unknown>;
   streak: number | null;
   rate: number | null;
   recordedDays: number;
   week: Array<boolean | null>;
+};
+
+export type TrackingPlan = {
+  id: string;
+  area: "nutrition" | "attention" | "physical" | "study" | "general";
+  title: string;
+  status: "planned" | "active" | "paused" | "completed";
+  startDate: string | null;
+  endDate: string | null;
+  instructions: string[];
+  notes: string;
 };
 
 export type DigitalWellbeing = {
@@ -176,6 +193,7 @@ export type DashboardData = {
   subjects: SubjectSummary[];
   goals: GoalRecord[];
   bodyMeasurement: BodyMeasurement | null;
+  trackingPlans: TrackingPlan[];
   journalEntries: JournalEntry[];
   habitRows: HabitOverview[];
   heatmap: number[];
