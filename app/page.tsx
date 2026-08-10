@@ -128,7 +128,7 @@ function habitFrequencyLabel(habit: HabitOverview) {
   const duration = min ? ` · ${min}${max ? `–${max}` : ""} min` : "";
   if (type === "weekdays") return `${habit.goal} · lunes a viernes${schedule}${start}`;
   if (type === "weekly") return `${habit.goal} por semana${duration}${schedule}${start}`;
-  if (type === "continuous_cycle") return `${habit.goal} por semana · ciclo continuo${duration}`;
+  if (type === "continuous_cycle") return `${habit.goal} por semana · ciclo continuo${duration}${habit.optional ? " · quinta oportunidad opcional" : ""}`;
   return `${habit.goal} al día${schedule}${start}`;
 }
 
@@ -2001,7 +2001,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               {habitData.map((habit) => (
                 <article className="habit-row" key={habit.id}>
                   <strong>{habit.title}</strong>
-                  <span>{habitFrequencyLabel(habit)}{habit.optional ? " · opcional" : ""}</span>
+                  <span>{habitFrequencyLabel(habit)}{habit.optional && habit.frequency.type !== "continuous_cycle" ? " · opcional" : ""}</span>
                   <div className="week-dots" aria-label={`Últimos 7 días de ${habit.title}`}>
                     {habit.week.map((done, index) => (
                       <i className={done === null ? "week-dot week-dot--unknown" : done ? "week-dot week-dot--done" : "week-dot"} key={index}>
@@ -2513,7 +2513,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               <label className="field"><span>Unidad</span><input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="sesión, rutina, registro…" /></label>
               <label className="field"><span>Duración mínima (min)</span><input type="number" min="1" value={habitForm.durationMin} onChange={(event) => setHabitForm((current) => ({ ...current, durationMin: event.target.value }))} placeholder="Opcional" /></label>
               <label className="field"><span>Duración máxima (min)</span><input type="number" min="1" value={habitForm.durationMax} onChange={(event) => setHabitForm((current) => ({ ...current, durationMax: event.target.value }))} placeholder="Opcional" /></label>
-              <label className="field"><span>Fecha de inicio</span><input type="date" value={habitForm.startDate} onChange={(event) => setHabitForm((current) => ({ ...current, startDate: event.target.value }))} /></label>
+              <label className="field"><span>Fecha de inicio</span><input inputMode="numeric" value={habitForm.startDate} onChange={(event) => setHabitForm((current) => ({ ...current, startDate: event.target.value }))} placeholder="AAAA-MM-DD" /></label>
               <label className="field"><span>Horario o regla</span><input value={habitForm.schedule} onChange={(event) => setHabitForm((current) => ({ ...current, schedule: event.target.value }))} placeholder="Opcional" /></label>
               {habitForm.frequency === "continuous_cycle" && <label className="field field--wide"><span>Secuencia del ciclo</span><input value={habitForm.cycle} onChange={(event) => setHabitForm((current) => ({ ...current, cycle: event.target.value }))} placeholder="Paso 1, Paso 2, Paso 3…" /></label>}
               <label className="field field--wide"><span>Qué cuenta</span><textarea value={habitForm.details} onChange={(event) => setHabitForm((current) => ({ ...current, details: event.target.value }))} placeholder="Criterios observables, sin castigos ni suposiciones" /></label>
@@ -2535,7 +2535,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           )}
           {entryType === "Medición" && (
             <div className="metric-form-grid">
-              <label className="field"><span>Fecha de medición</span><input type="date" value={bodyForm.recordedOn} onChange={(event) => setBodyForm((current) => ({ ...current, recordedOn: event.target.value }))} /></label>
+              <label className="field"><span>Fecha de medición</span><input inputMode="numeric" value={bodyForm.recordedOn} onChange={(event) => setBodyForm((current) => ({ ...current, recordedOn: event.target.value }))} placeholder="AAAA-MM-DD" /></label>
               <label className="field"><span>Estatura (cm)</span><input type="number" step=".1" value={bodyForm.height} onChange={(event) => setBodyForm((current) => ({ ...current, height: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Peso (kg)</span><input type="number" step=".1" value={bodyForm.weight} onChange={(event) => setBodyForm((current) => ({ ...current, weight: event.target.value }))} placeholder="Por registrar" /></label>
               <label className="field"><span>Cintura (cm)</span><input type="number" step=".1" value={bodyForm.waist} onChange={(event) => setBodyForm((current) => ({ ...current, waist: event.target.value }))} placeholder="Por registrar" /></label>
@@ -2578,8 +2578,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             <label className="field"><span>Área</span><select value={planForm.area} onChange={(event) => setPlanForm((current) => ({ ...current, area: event.target.value }))}><option value="nutrition">Nutrición</option><option value="attention">Atención</option><option value="physical">Físico</option><option value="study">Estudio</option><option value="general">General</option></select></label>
             <label className="field"><span>Estado</span><select value={planForm.status} onChange={(event) => setPlanForm((current) => ({ ...current, status: event.target.value }))}><option value="planned">Planificado</option><option value="active">Activo</option><option value="paused">Pausado</option><option value="completed">Completado</option></select></label>
             <label className="field field--wide"><span>Nombre</span><input value={planForm.title} onChange={(event) => setPlanForm((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Línea base de siete días" /></label>
-            <label className="field"><span>Inicio</span><input type="date" value={planForm.startDate} onChange={(event) => setPlanForm((current) => ({ ...current, startDate: event.target.value }))} /></label>
-            <label className="field"><span>Final</span><input type="date" value={planForm.endDate} onChange={(event) => setPlanForm((current) => ({ ...current, endDate: event.target.value }))} /></label>
+            <label className="field"><span>Inicio</span><input inputMode="numeric" value={planForm.startDate} onChange={(event) => setPlanForm((current) => ({ ...current, startDate: event.target.value }))} placeholder="AAAA-MM-DD" /></label>
+            <label className="field"><span>Final</span><input inputMode="numeric" value={planForm.endDate} onChange={(event) => setPlanForm((current) => ({ ...current, endDate: event.target.value }))} placeholder="AAAA-MM-DD" /></label>
             <label className="field field--wide"><span>Qué observar</span><textarea value={planForm.instructions} onChange={(event) => setPlanForm((current) => ({ ...current, instructions: event.target.value }))} placeholder="Una indicación por línea" /></label>
             <label className="field field--wide"><span>Notas y límites</span><textarea value={planForm.notes} onChange={(event) => setPlanForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Qué no se concluirá ni exigirá durante esta fase" /></label>
           </div>
