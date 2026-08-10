@@ -1445,15 +1445,25 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     <span className="subject-rune" style={{ color: "#8fa9d7" }}>
                       ◆
                     </span>
-                    <span className="tag">{subject.status === "passed" ? "Aprobada" : "En curso"}</span>
+                    <span className="tag">
+                      {subject.status === "passed"
+                        ? "Aprobada"
+                        : subject.status === "studying"
+                          ? "En curso"
+                          : subject.status === "failed"
+                            ? "Por repetir"
+                            : "Planificada"}
+                    </span>
                   </div>
                   <h3>{subject.name}</h3>
-                  <p>{subject.nextItem} · {subject.pendingItems} pendientes</p>
-                  <div className="subject-card__progress">
-                    <span>Preparación registrada</span>
-                    <strong>{subject.progress}%</strong>
-                  </div>
-                  <ProgressBar value={subject.progress} accent="#8fa9d7" small />
+                  <p>{subject.status === "pending" && subject.pendingItems === 0 ? "Sin actividad registrada" : `${subject.nextItem} · ${subject.pendingItems} pendientes`}</p>
+                  {subject.status !== "pending" || subject.pendingItems > 0 ? <>
+                    <div className="subject-card__progress">
+                      <span>Preparación registrada</span>
+                      <strong>{subject.progress}%</strong>
+                    </div>
+                    <ProgressBar value={subject.progress} accent="#8fa9d7" small />
+                  </> : <small>Se activará cuando comience el semestre.</small>}
                   <button onClick={() => { setEntryType("Tarea"); setTaskSubject(subject.name); setModal("quick"); }}>
                     Añadir pendiente <span>→</span>
                   </button>
