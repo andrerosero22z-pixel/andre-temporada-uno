@@ -43,9 +43,11 @@ Para activar la versión consolidada en Supabase deben ejecutarse, en orden:
 
 1. `supabase/migrations/202608040001_ai_ready_core.sql`
 2. `supabase/migrations/202608040002_consolidate_first_season.sql`
+3. `supabase/migrations/202608130001_planner_studies_phase_one.sql`
 
-Ambas son aditivas, mantienen RLS y no eliminan tablas ni datos. No se debe
-publicar la interfaz consolidada antes de aplicar las dos migraciones.
+Las tres son aditivas, mantienen RLS y no eliminan tablas ni datos. La tercera
+separa materias, cursos y autoestudio, y añade el compromiso flexible de tareas.
+No se debe publicar la interfaz antes de aplicar las migraciones correspondientes.
 
 ## Estructura
 

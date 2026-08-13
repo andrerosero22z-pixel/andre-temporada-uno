@@ -34,7 +34,9 @@ import {
   createGoal,
   createHabit,
   createPlannerItem,
+  createSubject,
   loadDashboardData,
+  moveFlexibleTaskToToday,
   saveBodyMeasurement,
   saveDigitalWellbeing,
   saveJournalEntry,
@@ -45,6 +47,7 @@ import {
   saveTrackingPlan,
   setHabitCheckin,
   setPlannerItemCompleted,
+  skipFlexibleTask,
 } from "@/lib/supabase/dashboard";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type {
@@ -59,12 +62,14 @@ import type {
   HabitOverview,
   HabitState,
   JournalEntry,
+  LifeAreaSummary,
   MealLog,
   MissionStatus,
   ProfileSettings,
   SeasonInfo,
   Skill,
   StoredSkill,
+  StudyOverview,
   SubjectSummary,
   Task,
   TaskState,
@@ -131,14 +136,6 @@ function habitFrequencyLabel(habit: HabitOverview) {
   if (type === "continuous_cycle") return `${habit.goal} por semana · ciclo continuo${duration}${habit.optional ? " · quinta oportunidad opcional" : ""}`;
   return `${habit.goal} al día${schedule}${start}`;
 }
-
-const phases = [
-  { label: "Diagnóstico", state: "pending" },
-  { label: "Comprensión", state: "pending" },
-  { label: "Práctica guiada", state: "pending" },
-  { label: "Práctica solo", state: "pending" },
-  { label: "Simulacro", state: "pending" },
-];
 
 const attributeGroups: AttributeGroup[] = [
   {
@@ -481,9 +478,16 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
   const [taskDate, setTaskDate] = useState("");
-  const [taskSubject, setTaskSubject] = useState("");
+  const [plannerTab, setPlannerTab] = useState<"agenda" | "studies">("agenda");
+  const [destinationKind, setDestinationKind] = useState<"subject" | "area" | "goal" | "general" | "new_subject">("general");
+  const [destinationId, setDestinationId] = useState("");
+  const [newSubjectName, setNewSubjectName] = useState("");
+  const [newSubjectType, setNewSubjectType] = useState<"university" | "course" | "self_study">("university");
+  const [commitmentLevel, setCommitmentLevel] = useState<"fixed" | "flexible" | "optional">("fixed");
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [subjectData, setSubjectData] = useState<SubjectSummary[]>([]);
+  const [lifeAreas, setLifeAreas] = useState<LifeAreaSummary[]>([]);
+  const [studyOverview, setStudyOverview] = useState<StudyOverview>({ weeklySessions: 0, weeklyMinutes: 0, averageGrade: null, averageMaximum: null });
   const [goalData, setGoalData] = useState<GoalRecord[]>([]);
   const [bodyMeasurement, setBodyMeasurement] = useState<BodyMeasurement | null>(null);
   const [journalData, setJournalData] = useState<JournalEntry[]>([]);
@@ -563,6 +567,17 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const nextExam = tasks.find(
     (task) => task.type === "Examen" && task.state !== "done",
   );
+  const agendaTasks = tasks.filter((task) => task.source === "task" && !task.subjectId && task.taskType !== "project");
+  const academicTasks = tasks.filter((task) => Boolean(task.subjectId) || task.taskType === "project");
+  const currentStudies = subjectData.filter((subject) =>
+    subject.status === "studying" && subject.subjectType !== "university",
+  );
+  const futureSubjects = subjectData.filter((subject) =>
+    subject.subjectType === "university" && subject.status === "pending",
+  );
+  const careerSubjects = subjectData.filter((subject) => subject.subjectType === "university");
+  const learningProjects = academicTasks.filter((task) => task.taskType === "project" && task.state !== "done");
+  const nextAcademicActivity = academicTasks.find((task) => task.type !== "Examen" && task.state !== "done");
   const completedThisWeek = habitData.reduce(
     (sum, habit) => sum + habit.week.filter((value) => value === true).length,
     0,
@@ -609,7 +624,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     { name: "Disciplina", value: weeklyRate, detail: "Últimos registros de hábitos y mínimos", change: weeklyRate == null ? "Aún no calculado" : `${completedThisWeek} de ${weeklyPossible} registros`, color: "#d3ac66" },
     { name: "Salud física", value: physicalRates.length === 2 ? Math.round(physicalRates.reduce((sum, value) => sum + value, 0) / physicalRates.length) : null, detail: "Movimiento y descanso registrados", change: bodyMeasurement ? "Línea base registrada" : "Aún no calculado", color: "#b98275" },
     { name: "Enfoque mental", value: recordedDigitalDays.length >= 7 ? attentionControlToday : null, detail: "Uso elegido y estímulos rápidos", change: recordedDigitalDays.length < 7 ? "Aún no calculado" : "Basado en los últimos 7 días", color: "#8fa9d7" },
-    { name: "Avance de carrera", value: subjectData.length ? Math.round((subjectData.filter((subject) => subject.status === "passed").length / subjectData.length) * 100) : null, detail: "Materias aprobadas sobre pénsum registrado", change: subjectData.length ? `${subjectData.filter((subject) => subject.status === "passed").length} de ${subjectData.length} materias` : "Pénsum por registrar", color: "#9a8cc2" },
+    { name: "Avance de carrera", value: careerSubjects.length ? Math.round((careerSubjects.filter((subject) => subject.status === "passed").length / careerSubjects.length) * 100) : null, detail: "Materias universitarias aprobadas sobre pénsum registrado", change: careerSubjects.length ? `${careerSubjects.filter((subject) => subject.status === "passed").length} de ${careerSubjects.length} materias` : "Pénsum por registrar", color: "#9a8cc2" },
     { name: "Orden financiero", value: null, detail: "Presupuesto, ahorro e ingresos", change: "Aún no calculado", color: "#c19b70" },
     { name: "Equilibrio personal", value: habitData.find((habit) => habit.title === "Oración")?.rate ?? null, detail: "Fe, descanso y ocio intencional", change: "Aún no calculado", color: "#7f9eb8" },
   ];
@@ -653,6 +668,8 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     setHabits(data.checkins);
     setHabitIds(data.ids);
     setSubjectData(data.subjects);
+    setLifeAreas(data.lifeAreas);
+    setStudyOverview(data.studyOverview);
     setGoalData(data.goals);
     setBodyMeasurement(data.bodyMeasurement);
     setJournalData(data.journalEntries);
@@ -852,6 +869,28 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     }
   }
 
+  async function omitFlexibleTask(task: Task) {
+    if (reviewMode) return notify("Modo revisión: los cambios están bloqueados.");
+    try {
+      await skipFlexibleTask(getSupabaseBrowserClient(), userId, task);
+      await refreshData();
+      notify("Actividad opcional omitida sin incumplimiento.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo omitir.");
+    }
+  }
+
+  async function moveFlexibleTask(task: Task) {
+    if (reviewMode) return notify("Modo revisión: los cambios están bloqueados.");
+    try {
+      await moveFlexibleTaskToToday(getSupabaseBrowserClient(), userId, task);
+      await refreshData();
+      notify("Actividad movida a obligatorio o programado.");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "No se pudo mover.");
+    }
+  }
+
   async function saveQuickEntry() {
     if (reviewMode) {
       notify("Modo revisión: no se guardan datos.");
@@ -874,16 +913,30 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     const numberOrNull = (value: string) => value === "" ? null : Number(value);
     setSaving(true);
     try {
-      if (entryType === "Tarea" || entryType === "Examen") {
+      if (entryType === "Tarea" || entryType === "Examen" || entryType === "Proyecto") {
+        let resolvedDestination = destinationKind;
+        let resolvedDestinationId = destinationId || null;
+        if (destinationKind === "new_subject") {
+          resolvedDestinationId = await createSubject(client, userId, {
+            name: newSubjectName,
+            subjectType: newSubjectType,
+            status: newSubjectType === "university" ? "pending" : "studying",
+          });
+          resolvedDestination = "subject";
+        }
         await createPlannerItem(client, userId, {
           title: note.trim(),
-          subject: taskSubject.trim() || "General",
+          destination: resolvedDestination as "subject" | "area" | "goal" | "general",
+          destinationId: resolvedDestinationId,
           dueDate: taskDate || null,
           type: entryType,
+          commitmentLevel,
+          estimatedMinutes: duration ? Number(duration) : null,
         });
       } else if (entryType === "Sesión de estudio") {
+        if (!destinationId) throw new Error("Elige una materia o estudio existente.");
         await saveStudySession(client, userId, {
-          subject: taskSubject.trim() || "General",
+          subjectId: destinationId,
           skillName: selectedSkill.name,
           durationMinutes: Number(duration),
           mode: studyMode,
@@ -951,7 +1004,11 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       setModal(null);
       setNote("");
       setTaskDate("");
-      setTaskSubject("");
+      setDestinationKind("general");
+      setDestinationId("");
+      setNewSubjectName("");
+      setNewSubjectType("university");
+      setCommitmentLevel("fixed");
       setNumberValue("");
       setTargetValue("");
       setUnit("");
@@ -1089,13 +1146,15 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
     }
     setSaving(true);
     try {
-      await saveStudySession(getSupabaseBrowserClient(), userId, {
-        subject: primaryTask.subject,
-        skillName: selectedSkill.name,
-        durationMinutes: Number(duration),
-        mode: index === 3 ? "simulation" : index === 2 ? "independent" : index === 0 ? "guided" : "practice",
-        notes: result,
-      });
+      if (primaryTask.subjectId) {
+        await saveStudySession(getSupabaseBrowserClient(), userId, {
+          subjectId: primaryTask.subjectId,
+          skillName: selectedSkill.name,
+          durationMinutes: Number(duration),
+          mode: index === 3 ? "simulation" : index === 2 ? "independent" : index === 0 ? "guided" : "practice",
+          notes: result,
+        });
+      }
       await setPlannerItemCompleted(getSupabaseBrowserClient(), primaryTask, true);
       await refreshData();
       setMissionStatus("done");
@@ -1141,9 +1200,11 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
         title: activeMinimumItems.length
           ? `Retomar con un mínimo: ${activeMinimumItems.map((item) => item.title).join(", ")}`
           : "Elegir una acción pequeña para retomar el ritmo",
-        subject: "Recuperación",
+        destination: "general",
+        destinationId: null,
         dueDate: today,
         type: "Tarea",
+        commitmentLevel: "fixed",
       });
       await refreshData();
       setModal(null);
@@ -1383,152 +1444,104 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           <div className="content-view">
             <section className="planner-header panel">
               <div>
-                <p className="eyebrow">Estudios</p>
-                <h2>Tu ruta académica.</h2>
-                <p>Tareas, exámenes y prácticas con fecha y siguiente paso.</p>
+                <p className="eyebrow">Planificador</p>
+                <h2>{plannerTab === "agenda" ? "Agenda personal." : "Panel del estudiante."}</h2>
+                <p>{plannerTab === "agenda" ? "Separa compromisos reales de lo que harás solo si tienes tiempo." : "Cursos, autoestudio, proyectos y materias futuras sin mezclar áreas personales."}</p>
               </div>
               <div className="planner-actions">
-                <button className="secondary-action" onClick={() => setModal("quick")}>
+                <button className="secondary-action" onClick={() => {
+                  setEntryType(plannerTab === "studies" ? "Sesión de estudio" : "Tarea");
+                  setDestinationKind(plannerTab === "studies" ? "subject" : "general");
+                  setDestinationId("");
+                  setModal("quick");
+                }}>
                   + Registrar
                 </button>
               </div>
             </section>
 
-            <section className="week-strip panel" aria-label="Resumen semanal">
-              {plannerDays.map(({ iso, day, date, count, active }) => (
-                <button
-                  key={`${day}-${date}`}
-                  className={active ? "week-day week-day--active" : "week-day"}
-                  onClick={() => { setEntryType("Tarea"); setTaskDate(iso); setModal("quick"); }}
-                >
-                  <small>{day}</small>
-                  <strong>{date}</strong>
-                  <span>{count || "—"}</span>
-                </button>
-              ))}
-            </section>
+            <div className="planner-tabs" role="tablist" aria-label="Secciones del planificador">
+              <button className={plannerTab === "agenda" ? "is-active" : ""} onClick={() => setPlannerTab("agenda")}>Agenda</button>
+              <button className={plannerTab === "studies" ? "is-active" : ""} onClick={() => setPlannerTab("studies")}>Estudios</button>
+            </div>
 
-            <section className="task-board">
-              {([
-                ["today", "Hoy", "Lo que mueve el día"],
-                ["upcoming", "Próximas", "Con fecha definida"],
-                ["done", "Completadas", "Progreso real"],
-              ] as [TaskState, string, string][]).map(([state, title, subtitle]) => {
-                const columnTasks = tasks.filter((task) => task.state === state);
-                return (
-                  <div className="task-column panel" key={state}>
-                    <div className="task-column__head">
-                      <div>
-                        <h3>{title}</h3>
-                        <small>{subtitle}</small>
-                      </div>
-                      <span>{columnTasks.length}</span>
-                    </div>
-                    <div className="task-list">
-                      {columnTasks.map((task) => (
-                        <article
-                          className={`task-item ${state === "done" ? "task-item--done" : ""}`}
-                          key={task.id}
-                        >
-                          <button
-                            className="task-check"
-                            onClick={() => toggleTask(task.id)}
-                            aria-label={
-                              state === "done"
-                                ? `Reabrir ${task.title}`
-                                : `Completar ${task.title}`
-                            }
-                          >
-                            {state === "done" ? "✓" : ""}
-                          </button>
-                          <div>
-                            <span className={`task-type task-type--${task.type.toLowerCase()}`}>
-                              {task.type}
-                            </span>
-                            <h4>{task.title}</h4>
-                            <p>{task.subject}</p>
-                            <small>{formatTaskDate(task.dueDate, task.state)}</small>
-                          </div>
-                        </article>
-                      ))}
-                      {columnTasks.length === 0 && (
-                        <div className="empty-task">No hay elementos aquí.</div>
-                      )}
-                    </div>
-                    {state === "today" && (
-                      <button className="add-row" onClick={() => setModal("quick")}>
-                        + Añadir tarea
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </section>
-
-            <section className="subject-grid">
-              {subjectData.map((subject) => (
-                <article className="subject-card panel" key={subject.name}>
-                  <div className="subject-card__top">
-                    <span className="subject-rune" style={{ color: "#8fa9d7" }}>
-                      ◆
-                    </span>
-                    <span className="tag">
-                      {subject.status === "passed"
-                        ? "Aprobada"
-                        : subject.status === "studying"
-                          ? "En curso"
-                          : subject.status === "failed"
-                            ? "Por repetir"
-                            : "Planificada"}
-                    </span>
-                  </div>
-                  <h3>{subject.name}</h3>
-                  <p>{subject.status === "pending" && subject.pendingItems === 0 ? "Sin actividad registrada" : `${subject.nextItem} · ${subject.pendingItems} pendientes`}</p>
-                  {subject.status !== "pending" || subject.pendingItems > 0 ? <>
-                    <div className="subject-card__progress">
-                      <span>Preparación registrada</span>
-                      <strong>{subject.progress}%</strong>
-                    </div>
-                    <ProgressBar value={subject.progress} accent="#8fa9d7" small />
-                  </> : <small>Se activará cuando comience el semestre.</small>}
-                  <button onClick={() => { setEntryType("Tarea"); setTaskSubject(subject.name); setModal("quick"); }}>
-                    Añadir pendiente <span>→</span>
+            {plannerTab === "agenda" && <>
+              <section className="week-strip panel" aria-label="Resumen semanal">
+                {plannerDays.map(({ iso, day, date, count, active }) => (
+                  <button key={`${day}-${date}`} className={active ? "week-day week-day--active" : "week-day"} onClick={() => {
+                    setEntryType("Tarea"); setTaskDate(iso); setDestinationKind("general"); setDestinationId(""); setModal("quick");
+                  }}>
+                    <small>{day}</small><strong>{date}</strong><span>{count || "—"}</span>
                   </button>
-                </article>
-              ))}
-              {subjectData.length === 0 && (
-                <article className="empty-state panel">
-                  <strong>Sin materias</strong>
-                  <p>Crea una al registrar tu primera tarea o examen.</p>
-                  <button className="secondary-action" onClick={() => { setEntryType("Tarea"); setModal("quick"); }}>Registrar</button>
-                </article>
-              )}
-            </section>
-
-            {nextExam && <section className="path-card panel">
-              <div className="path-card__heading">
-                <div>
-                  <p className="eyebrow">{nextExam.subject} · {nextExam.title}</p>
-                  <h3>Ruta de preparación</h3>
-                </div>
-                <span>0 de 5 fases</span>
-              </div>
-              <div className="phase-path">
-                {phases.map((phase, index) => (
-                  <div className={`phase phase--${phase.state}`} key={phase.label}>
-                    <span>{phase.state === "done" ? "✓" : index + 1}</span>
-                    <strong>{phase.label}</strong>
-                    <small>
-                      {phase.state === "done"
-                        ? "Completado"
-                        : phase.state === "active"
-                          ? "Misión de hoy"
-                          : "Pendiente"}
-                    </small>
-                  </div>
                 ))}
-              </div>
-            </section>}
+              </section>
+
+              <section className="task-board task-board--four">
+                {([
+                  ["today", "Obligatorio o programado", "Compromisos de hoy"],
+                  ["flexible", "Si tengo tiempo", "No cuenta como incumplimiento"],
+                  ["upcoming", "Próximas", "Con fecha definida"],
+                  ["done", "Completadas", "Acciones terminadas"],
+                ] as [TaskState, string, string][]).map(([state, title, subtitle]) => {
+                  const columnTasks = agendaTasks.filter((task) => task.state === state);
+                  return <div className="task-column panel" key={state}>
+                    <div className="task-column__head"><div><h3>{title}</h3><small>{subtitle}</small></div><span>{columnTasks.length}</span></div>
+                    <div className="task-list">
+                      {columnTasks.map((task) => <article className={`task-item ${state === "done" ? "task-item--done" : ""}`} key={task.id}>
+                        <button className="task-check" onClick={() => toggleTask(task.id)} aria-label={state === "done" ? `Reabrir ${task.title}` : `Completar ${task.title}`}>{state === "done" ? "✓" : ""}</button>
+                        <div><span className={`task-type task-type--${task.type.toLowerCase()}`}>{task.type}</span><h4>{task.title}</h4><p>{task.subject}</p><small>{state === "flexible" ? "Opcional · sin atraso" : formatTaskDate(task.dueDate, task.state)}</small>
+                          {state === "flexible" && <div className="task-inline-actions"><button onClick={() => omitFlexibleTask(task)}>Omitir</button><button onClick={() => moveFlexibleTask(task)}>Mover</button></div>}
+                        </div>
+                      </article>)}
+                      {columnTasks.length === 0 && <div className="empty-task">No hay elementos aquí.</div>}
+                    </div>
+                    {state === "today" && <button className="add-row" onClick={() => { setEntryType("Tarea"); setDestinationKind("general"); setModal("quick"); }}>+ Añadir tarea</button>}
+                  </div>;
+                })}
+              </section>
+            </>}
+
+            {plannerTab === "studies" && <>
+              <section className="student-overview panel">
+                <div className="student-overview__heading"><div><p className="eyebrow">Resumen académico</p><h3>Panel del estudiante</h3></div><button className="secondary-action" onClick={() => { setEntryType("Sesión de estudio"); setDestinationKind("subject"); setDestinationId(currentStudies[0]?.id ?? ""); setModal("quick"); }}>Registrar estudio</button></div>
+                <div className="student-stat-grid">
+                  <div><small>Próxima actividad</small><strong>{nextAcademicActivity?.title ?? "Sin actividad"}</strong></div>
+                  <div><small>Próxima evaluación</small><strong>{nextExam?.title ?? "Sin evaluación"}</strong></div>
+                  <div><small>Sesiones esta semana</small><strong>{studyOverview.weeklySessions ? studyOverview.weeklySessions : "Sin sesiones"}</strong></div>
+                  <div><small>Tiempo registrado</small><strong>{studyOverview.weeklyMinutes ? `${studyOverview.weeklyMinutes} min` : "Sin sesiones"}</strong></div>
+                  <div><small>Promedio</small><strong>{studyOverview.averageGrade == null || studyOverview.averageMaximum == null ? "Aún no calculado" : `${studyOverview.averageGrade.toFixed(1)} / ${studyOverview.averageMaximum}`}</strong></div>
+                </div>
+              </section>
+
+              <section className="study-section">
+                <div className="study-section__heading"><div><p className="eyebrow">Estudios actuales</p><h3>En curso</h3></div></div>
+                <div className="study-card-grid">
+                  {currentStudies.map((subject) => <article className="study-card panel" key={subject.id}>
+                    <div className="subject-card__top"><BookOpenText size={21} aria-hidden="true" /><span className="tag">{subject.subjectType === "course" ? "Curso" : "Autoestudio"}</span></div>
+                    <h3>{subject.name}</h3><p><strong>Siguiente acción:</strong> {subject.nextItem}</p>
+                    <div className="study-card__facts"><span>{subject.sessions ? `${subject.sessions} sesiones` : "Sin sesiones"}</span><span>{subject.nextEvaluation ?? "Sin evaluación"}</span></div>
+                    <div className="study-card__actions"><button onClick={() => { setEntryType("Sesión de estudio"); setDestinationKind("subject"); setDestinationId(subject.id); setModal("quick"); }}>Registrar estudio</button><button onClick={() => { setEntryType("Tarea"); setDestinationKind("subject"); setDestinationId(subject.id); setModal("quick"); }}>Añadir pendiente</button></div>
+                  </article>)}
+                  {currentStudies.length === 0 && <article className="empty-state panel"><strong>Sin estudios en curso</strong><p>Crea un curso o autoestudio de forma explícita.</p><button className="secondary-action" onClick={() => { setEntryType("Tarea"); setDestinationKind("new_subject"); setNewSubjectType("course"); setModal("quick"); }}>Nueva materia o estudio</button></article>}
+                </div>
+              </section>
+
+              <section className="study-section">
+                <div className="study-section__heading"><div><p className="eyebrow">Construcción aplicada</p><h3>Proyectos de aprendizaje</h3></div><button className="text-action" onClick={() => { setEntryType("Proyecto"); setDestinationKind("general"); setModal("quick"); }}>+ Nuevo proyecto</button></div>
+                <div className="project-list panel">
+                  {learningProjects.map((project) => <article key={project.id}><div><span className="tag">Proyecto</span><h4>{project.title}</h4><p>Próxima acción · {project.dueDate ? formatTaskDate(project.dueDate, project.state) : "Sin fecha"}</p></div><button className="task-check" onClick={() => toggleTask(project.id)} aria-label={`Completar ${project.title}`} /></article>)}
+                  {learningProjects.length === 0 && <div className="empty-task">Sin proyectos de aprendizaje activos.</div>}
+                </div>
+              </section>
+
+              <details className="future-subjects panel">
+                <summary><span><small>Universidad</small><strong>Próximo semestre</strong></span><span>{futureSubjects.length} materias</span></summary>
+                <div className="future-subjects__grid">
+                  {futureSubjects.map((subject) => <article key={subject.id}><div><CalendarDays size={19} aria-hidden="true" /><span><strong>{subject.name}</strong><small>{subject.name === "Prácticas de Servicio Comunitario" ? "Funcionamiento pendiente de aclarar" : "Inicio por confirmar"}</small></span></div><p>Sin actividad registrada</p></article>)}
+                  {futureSubjects.length === 0 && <div className="empty-task">Sin materias futuras registradas.</div>}
+                </div>
+              </details>
+            </>}
           </div>
         )}
 
@@ -1612,14 +1625,14 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                     <strong>{realLifeStats[3].value == null ? "Sin datos" : `${realLifeStats[3].value}%`}</strong>
                   </div>
                   {realLifeStats[3].value != null && <ProgressBar value={realLifeStats[3].value} accent="#9a8cc2" />}
-                  <small>{subjectData.length ? `${subjectData.filter((subject) => subject.status === "passed").length} aprobadas · ${subjectData.filter((subject) => subject.status === "studying").length} cursando · ${subjectData.filter((subject) => subject.status === "pending").length} pendientes` : "Registra tu pénsum para calcular el avance académico."}</small>
+                  <small>{careerSubjects.length ? `${careerSubjects.filter((subject) => subject.status === "passed").length} aprobadas · ${careerSubjects.filter((subject) => subject.status === "studying").length} cursando · ${careerSubjects.filter((subject) => subject.status === "pending").length} pendientes` : "Registra tu pénsum para calcular el avance académico."}</small>
                 </div>
               </div>
               <div className="term-card">
                 <span>Periodo actual</span>
-                <strong>{subjectData.filter((subject) => subject.status === "studying").length} materias</strong>
-                <div><small>Sin pendientes</small><b>{subjectData.filter((subject) => subject.status === "studying" && subject.pendingItems === 0).length}</b></div>
-                <div><small>Con pendientes</small><b className="warning-text">{subjectData.filter((subject) => subject.status === "studying" && subject.pendingItems > 0).length}</b></div>
+                <strong>{careerSubjects.filter((subject) => subject.status === "studying").length} materias</strong>
+                <div><small>Sin pendientes</small><b>{careerSubjects.filter((subject) => subject.status === "studying" && subject.pendingItems === 0).length}</b></div>
+                <div><small>Con pendientes</small><b className="warning-text">{careerSubjects.filter((subject) => subject.status === "studying" && subject.pendingItems > 0).length}</b></div>
                 <div><small>Próxima evaluación</small><b>{nextExam ? formatTaskDate(nextExam.dueDate, nextExam.state) : "Ninguna"}</b></div>
               </div>
             </section>}
@@ -1772,7 +1785,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <div className="goal-next"><small>Razón</small><p>{goal.reason || "Añade evidencia para construir el plan y medir el avance."}</p></div>
                   <footer>
                     <span>◷ {goal.targetDate ?? "Sin fecha"}</span>
-                    <button onClick={() => { setEntryType("Tarea"); setTaskSubject("Meta personal"); setNote(`Siguiente paso: ${goal.title}`); setModal("quick"); }}>Crear siguiente paso →</button>
+                    <button onClick={() => { setEntryType("Tarea"); setDestinationKind("goal"); setDestinationId(goal.id); setNote(`Siguiente paso: ${goal.title}`); setModal("quick"); }}>Crear siguiente paso →</button>
                   </footer>
                 </article>
               ))}
@@ -2249,7 +2262,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                   <article className="book-card panel" key={book.title}>
                     <span><BookOpenText aria-hidden="true" size={20} strokeWidth={1.7} /></span>
                     <div><small>{book.theme}</small><h4>{book.title}</h4><p>{book.author}</p></div>
-                    <button onClick={() => { setEntryType("Tarea"); setTaskSubject("Lectura"); setNote(`Leer: ${book.title}`); setModal("quick"); }}>Planear lectura</button>
+                    <button onClick={() => { setEntryType("Tarea"); setDestinationKind("general"); setDestinationId(""); setNote(`Leer: ${book.title}`); setModal("quick"); }}>Planear lectura</button>
                   </article>
                 ))}
               </div>
@@ -2428,7 +2441,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
           onClose={() => setModal(null)}
         >
           <div className="segmented segmented--five">
-            {["Actividad", "Sesión de estudio", "Tarea", "Examen", "Hábito", "Meta", "Medición", "Pantallas", "Diario"].map((type) => (
+            {["Actividad", "Sesión de estudio", "Tarea", "Examen", "Proyecto", "Hábito", "Meta", "Medición", "Pantallas", "Diario"].map((type) => (
               <button
                 key={type}
                 className={entryType === type ? "segmented__active" : ""}
@@ -2446,7 +2459,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 placeholder={
-                  entryType === "Tarea" || entryType === "Examen"
+                  entryType === "Tarea" || entryType === "Examen" || entryType === "Proyecto"
                     ? "Ej.: Resolver taller de normalización"
                     : entryType === "Meta"
                       ? "Ej.: Llegar al 12% de grasa corporal"
@@ -2455,30 +2468,28 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
               />
             </label>
           )}
-          {(entryType === "Tarea" || entryType === "Examen" || entryType === "Sesión de estudio") && (
-            <div className="field-row">
-              <label className="field">
-                <span>Materia o área</span>
-                <input
-                  type="text"
-                  value={taskSubject}
-                  onChange={(event) => setTaskSubject(event.target.value)}
-                  placeholder="Ej.: Estadística"
-                />
-              </label>
-              {entryType === "Sesión de estudio" ? (
-                <label className="field">
-                  <span>Duración (min)</span>
-                  <input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="Sin duración automática" />
-                </label>
-              ) : (
-                <label className="field field--date">
-                  <span>Fecha</span>
-                  <input type="date" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} />
-                </label>
-              )}
-            </div>
-          )}
+          {(entryType === "Tarea" || entryType === "Examen" || entryType === "Proyecto" || entryType === "Sesión de estudio") && <>
+            {entryType === "Sesión de estudio" ? (
+              <div className="field-row">
+                <label className="field"><span>Materia o estudio existente</span><select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}><option value="">Selecciona</option>{subjectData.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label>
+                <label className="field"><span>Duración real (min)</span><input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="Sin duración automática" /></label>
+              </div>
+            ) : <>
+              <div className="field-row">
+                <label className="field"><span>Destino</span><select value={destinationKind} onChange={(event) => { setDestinationKind(event.target.value as typeof destinationKind); setDestinationId(""); }}><option value="general">General</option><option value="subject">Materia o estudio</option><option value="area">Área personal</option>{entryType === "Proyecto" && <option value="goal">Meta</option>}<option value="new_subject">Nueva materia o estudio</option></select></label>
+                {destinationKind === "subject" && <label className="field"><span>Materia o estudio</span><select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}><option value="">Selecciona</option>{subjectData.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label>}
+                {destinationKind === "area" && <label className="field"><span>Área personal</span><select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}><option value="">Selecciona</option>{lifeAreas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select></label>}
+                {destinationKind === "goal" && <label className="field"><span>Meta</span><select value={destinationId} onChange={(event) => setDestinationId(event.target.value)}><option value="">Selecciona</option>{goalData.map((goal) => <option key={goal.id} value={goal.id}>{goal.title}</option>)}</select></label>}
+                {destinationKind === "new_subject" && <label className="field"><span>Nombre nuevo</span><input value={newSubjectName} onChange={(event) => setNewSubjectName(event.target.value)} placeholder="Nombre de la materia o estudio" /></label>}
+              </div>
+              {destinationKind === "new_subject" && <div className="field-row"><label className="field"><span>Tipo de estudio</span><select value={newSubjectType} onChange={(event) => setNewSubjectType(event.target.value as typeof newSubjectType)}><option value="university">Materia universitaria</option><option value="course">Curso</option><option value="self_study">Autoestudio</option></select></label></div>}
+              <div className="field-row">
+                <label className="field field--date"><span>Fecha</span><input type="date" value={taskDate} onChange={(event) => setTaskDate(event.target.value)} /></label>
+                {entryType !== "Examen" && <label className="field"><span>Compromiso</span><select value={commitmentLevel} onChange={(event) => setCommitmentLevel(event.target.value as typeof commitmentLevel)}><option value="fixed">Obligatorio o programado</option><option value="flexible">Si tengo tiempo</option><option value="optional">Opcional</option></select></label>}
+              </div>
+              {entryType !== "Examen" && <label className="field"><span>Duración sugerida (opcional)</span><input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="Sin duración automática" /></label>}
+            </>}
+          </>}
           {entryType === "Sesión de estudio" && (
             <div className="field-row">
               <label className="field">
