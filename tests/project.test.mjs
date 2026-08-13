@@ -74,6 +74,16 @@ test("separates Agenda, current studies, projects and the future semester", asyn
   assert.match(page, />Estudios<\/button>/);
   assert.match(page, /Obligatorio o programado/);
   assert.match(page, /Si tengo tiempo/);
+  assert.match(
+    page,
+    /const agendaTasks = tasks\.filter\(\(task\) => task\.source === "task" && task\.taskType !== "project"\)/,
+    "the Agenda should include academic pending work alongside personal tasks",
+  );
+  assert.doesNotMatch(
+    page,
+    /const agendaTasks = tasks\.filter\([^\n]+!task\.subjectId/,
+    "subject-linked tasks should not be hidden from the Agenda",
+  );
   assert.match(page, /Proyectos de aprendizaje/);
   assert.match(page, /<details className="future-subjects panel">/);
   assert.match(page, /Inicio por confirmar/);

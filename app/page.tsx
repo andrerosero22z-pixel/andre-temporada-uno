@@ -567,7 +567,10 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const nextExam = tasks.find(
     (task) => task.type === "Examen" && task.state !== "done",
   );
-  const agendaTasks = tasks.filter((task) => task.source === "task" && !task.subjectId && task.taskType !== "project");
+  // La Agenda es la vista temporal de todo el día: una tarea académica
+  // sigue siendo un compromiso visible aunque también aparezca contextualizada
+  // dentro de Estudios. Solo los proyectos conservan su sección propia.
+  const agendaTasks = tasks.filter((task) => task.source === "task" && task.taskType !== "project");
   const academicTasks = tasks.filter((task) => Boolean(task.subjectId) || task.taskType === "project");
   const currentStudies = subjectData.filter((subject) =>
     subject.status === "studying" && subject.subjectType !== "university",
