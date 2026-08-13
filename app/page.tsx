@@ -478,6 +478,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
   const [entryType, setEntryType] = useState("Sesión de estudio");
   const [note, setNote] = useState("");
   const [taskDate, setTaskDate] = useState("");
+  const [selectedAgendaDate, setSelectedAgendaDate] = useState("");
   const [plannerTab, setPlannerTab] = useState<"agenda" | "studies">("agenda");
   const [destinationKind, setDestinationKind] = useState<"subject" | "area" | "goal" | "general" | "new_subject">("general");
   const [destinationId, setDestinationId] = useState("");
@@ -654,9 +655,25 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
       day: parts.day,
       date: parts.date,
       count: tasks.filter((task) => task.dueDate === iso && task.state !== "done").length,
-      active: index === 0,
+      active: iso === (selectedAgendaDate || clientClock.today),
     };
-  }), [clientClock, tasks]);
+  }), [clientClock, selectedAgendaDate, tasks]);
+  const activeAgendaDate = selectedAgendaDate || clientClock?.today || "";
+  const scheduledAgendaTasks = agendaTasks.filter((task) =>
+    task.state !== "done"
+    && task.commitmentLevel === "fixed"
+    && task.dueDate === activeAgendaDate,
+  );
+  const flexibleAgendaTasks = agendaTasks.filter((task) =>
+    task.state !== "done"
+    && task.commitmentLevel !== "fixed"
+    && task.dueDate === activeAgendaDate,
+  );
+  const backlogAgendaTasks = agendaTasks.filter((task) =>
+    task.state !== "done"
+    && (task.dueDate === null || task.dueDate < activeAgendaDate),
+  );
+  const completedAgendaTasks = agendaTasks.filter((task) => task.state === "done");
   const activeMinimumItems = habitData.filter((habit) => habit.habitType === "non_negotiable" && !habit.optional);
   const completedHabits = activeMinimumItems.filter((habit) => habit.week.at(-1) === true).length;
   const seasonLabel = season.status === "active" && season.week
@@ -1471,9 +1488,7 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
             {plannerTab === "agenda" && <>
               <section className="week-strip panel" aria-label="Resumen semanal">
                 {plannerDays.map(({ iso, day, date, count, active }) => (
-                  <button key={`${day}-${date}`} className={active ? "week-day week-day--active" : "week-day"} onClick={() => {
-                    setEntryType("Tarea"); setTaskDate(iso); setDestinationKind("general"); setDestinationId(""); setModal("quick");
-                  }}>
+                  <button key={`${day}-${date}`} className={active ? "week-day week-day--active" : "week-day"} onClick={() => setSelectedAgendaDate(iso)}>
                     <small>{day}</small><strong>{date}</strong><span>{count || "—"}</span>
                   </button>
                 ))}
@@ -1481,24 +1496,23 @@ export function Dashboard({ forcedReview = false }: { forcedReview?: boolean }) 
 
               <section className="task-board task-board--four">
                 {([
-                  ["today", "Obligatorio o programado", "Compromisos de hoy"],
-                  ["flexible", "Si tengo tiempo", "No cuenta como incumplimiento"],
-                  ["upcoming", "Próximas", "Con fecha definida"],
-                  ["done", "Completadas", "Acciones terminadas"],
-                ] as [TaskState, string, string][]).map(([state, title, subtitle]) => {
-                  const columnTasks = agendaTasks.filter((task) => task.state === state);
-                  return <div className="task-column panel" key={state}>
+                  ["scheduled", "Programado", "Para el día seleccionado", scheduledAgendaTasks],
+                  ["flexible", "Si tengo tiempo", "Flexible para este día", flexibleAgendaTasks],
+                  ["backlog", "Pendientes anteriores", "Otros días o sin fecha", backlogAgendaTasks],
+                  ["done", "Completadas", "Historial de acciones", completedAgendaTasks],
+                ] as [string, string, string, Task[]][]).map(([column, title, subtitle, columnTasks]) => {
+                  return <div className="task-column panel" key={column}>
                     <div className="task-column__head"><div><h3>{title}</h3><small>{subtitle}</small></div><span>{columnTasks.length}</span></div>
                     <div className="task-list">
-                      {columnTasks.map((task) => <article className={`task-item ${state === "done" ? "task-item--done" : ""}`} key={task.id}>
-                        <button className="task-check" onClick={() => toggleTask(task.id)} aria-label={state === "done" ? `Reabrir ${task.title}` : `Completar ${task.title}`}>{state === "done" ? "✓" : ""}</button>
-                        <div><span className={`task-type task-type--${task.type.toLowerCase()}`}>{task.type}</span><h4>{task.title}</h4><p>{task.subject}</p><small>{state === "flexible" ? "Opcional · sin atraso" : formatTaskDate(task.dueDate, task.state)}</small>
-                          {state === "flexible" && <div className="task-inline-actions"><button onClick={() => omitFlexibleTask(task)}>Omitir</button><button onClick={() => moveFlexibleTask(task)}>Mover</button></div>}
+                      {columnTasks.map((task) => <article className={`task-item ${column === "done" ? "task-item--done" : ""}`} key={task.id}>
+                        <button className="task-check" onClick={() => toggleTask(task.id)} aria-label={column === "done" ? `Reabrir ${task.title}` : `Completar ${task.title}`}>{column === "done" ? "✓" : ""}</button>
+                        <div><span className={`task-type task-type--${task.type.toLowerCase()}`}>{task.type}</span><h4>{task.title}</h4><p>{task.subject}</p><small>{column === "flexible" ? "Opcional · sin atraso" : formatTaskDate(task.dueDate, task.state)}</small>
+                          {task.commitmentLevel !== "fixed" && column !== "done" && <div className="task-inline-actions"><button onClick={() => omitFlexibleTask(task)}>Omitir</button><button onClick={() => moveFlexibleTask(task)}>Mover a hoy</button></div>}
                         </div>
                       </article>)}
                       {columnTasks.length === 0 && <div className="empty-task">No hay elementos aquí.</div>}
                     </div>
-                    {state === "today" && <button className="add-row" onClick={() => { setEntryType("Tarea"); setDestinationKind("general"); setModal("quick"); }}>+ Añadir tarea</button>}
+                    {column === "scheduled" && <button className="add-row" onClick={() => { setEntryType("Tarea"); setTaskDate(activeAgendaDate); setDestinationKind("general"); setModal("quick"); }}>+ Añadir para este día</button>}
                   </div>;
                 })}
               </section>

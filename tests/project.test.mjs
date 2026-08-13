@@ -72,8 +72,12 @@ test("separates Agenda, current studies, projects and the future semester", asyn
 
   assert.match(page, />Agenda<\/button>/);
   assert.match(page, />Estudios<\/button>/);
-  assert.match(page, /Obligatorio o programado/);
+  assert.match(page, /Para el día seleccionado/);
   assert.match(page, /Si tengo tiempo/);
+  assert.match(page, /Pendientes anteriores/);
+  assert.match(page, /setSelectedAgendaDate\(iso\)/);
+  assert.match(page, /task\.dueDate === activeAgendaDate/);
+  assert.match(page, /task\.dueDate === null \|\| task\.dueDate < activeAgendaDate/);
   assert.match(
     page,
     /const agendaTasks = tasks\.filter\(\(task\) => task\.source === "task" && task\.taskType !== "project"\)/,
