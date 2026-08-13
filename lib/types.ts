@@ -10,16 +10,23 @@ export type View =
   | "system";
 
 export type MissionStatus = "pending" | "active" | "done";
-export type TaskState = "today" | "upcoming" | "done";
+export type TaskState = "today" | "flexible" | "upcoming" | "done";
 export type PlannerItemSource = "task" | "evaluation";
+export type SubjectType = "university" | "course" | "self_study";
+export type CommitmentLevel = "fixed" | "flexible" | "optional";
 
 export type Task = {
   id: string;
   source: PlannerItemSource;
   title: string;
+  subjectId: string | null;
+  areaId: string | null;
   subject: string;
   dueDate: string | null;
-  type: "Tarea" | "Examen" | "Práctica";
+  type: "Tarea" | "Examen" | "Práctica" | "Proyecto";
+  taskType: "task" | "mission" | "project" | "appointment" | "evaluation";
+  commitmentLevel: CommitmentLevel;
+  estimatedMinutes: number | null;
   state: TaskState;
 };
 
@@ -46,9 +53,28 @@ export type SubjectSummary = {
   id: string;
   name: string;
   status: "pending" | "studying" | "passed" | "failed";
+  subjectType: SubjectType;
+  startsOn: string | null;
+  endsOn: string | null;
   progress: number;
   pendingItems: number;
   nextItem: string;
+  sessions: number;
+  studyMinutes: number;
+  nextEvaluation: string | null;
+};
+
+export type LifeAreaSummary = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+export type StudyOverview = {
+  weeklySessions: number;
+  weeklyMinutes: number;
+  averageGrade: number | null;
+  averageMaximum: number | null;
 };
 
 export type GoalRecord = {
@@ -191,6 +217,8 @@ export type DashboardData = {
   checkins: HabitState;
   ids: HabitIds;
   subjects: SubjectSummary[];
+  lifeAreas: LifeAreaSummary[];
+  studyOverview: StudyOverview;
   goals: GoalRecord[];
   bodyMeasurement: BodyMeasurement | null;
   trackingPlans: TrackingPlan[];

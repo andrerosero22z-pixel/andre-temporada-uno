@@ -10,12 +10,14 @@ import type {
   HabitOverview,
   HabitState,
   JournalEntry,
+  LifeAreaSummary,
   MealLog,
   ProfileSettings,
   SeasonInfo,
   SeasonSetupInput,
   StoredSkill,
   SubjectSummary,
+  SubjectType,
   Task,
   TaskState,
   TrackingPlan,
@@ -55,14 +57,20 @@ type SubjectRow = {
   id: string;
   name: string;
   status: SubjectSummary["status"];
+  subject_type: SubjectType;
+  starts_on: string | null;
+  ends_on: string | null;
 };
 type TaskRow = {
   id: string;
   title: string;
   subject_id: string | null;
+  area_id: string | null;
   task_type: "task" | "mission" | "project" | "appointment";
+  commitment_level: "fixed" | "flexible" | "optional";
   status: "pending" | "in_progress" | "completed" | "cancelled";
   due_at: string | null;
+  estimated_minutes: number | null;
 };
 type EvaluationRow = {
   id: string;
@@ -71,6 +79,14 @@ type EvaluationRow = {
   evaluation_type: "exam" | "quiz" | "assignment" | "presentation" | "project";
   status: "upcoming" | "preparing" | "completed" | "cancelled";
   evaluation_at: string;
+  grade: number | null;
+  maximum_grade: number | null;
+};
+type LifeAreaRow = LifeAreaSummary;
+type StudySessionRow = {
+  subject_id: string | null;
+  duration_minutes: number;
+  started_at: string;
 };
 type HabitRow = {
   id: string;
@@ -172,8 +188,13 @@ function datePart(value: string | null) {
   return localDate(new Date(value));
 }
 
-function plannerState(completed: boolean, dueAt: string | null): TaskState {
+function plannerState(
+  completed: boolean,
+  dueAt: string | null,
+  commitment: TaskRow["commitment_level"] = "fixed",
+): TaskState {
   if (completed) return "done";
+  if (commitment !== "fixed") return "flexible";
   const dueDate = datePart(dueAt);
   return !dueDate || dueDate <= localDate() ? "today" : "upcoming";
 }
@@ -183,7 +204,9 @@ function subjectName(subjects: Map<string, string>, id: string | null) {
 }
 
 function taskType(value: TaskRow["task_type"]): Task["type"] {
-  return value === "mission" ? "Práctica" : "Tarea";
+  if (value === "mission") return "Práctica";
+  if (value === "project") return "Proyecto";
+  return "Tarea";
 }
 
 function evaluationType(value: EvaluationRow["evaluation_type"]): Task["type"] {
@@ -298,8 +321,10 @@ export async function loadDashboardData(
   const since = recentDates(28)[0];
   const [
     subjectsResult,
+    lifeAreasResult,
     tasksResult,
     evaluationsResult,
+    studySessionsResult,
     habitsResult,
     goalsResult,
     bodyResult,
@@ -312,9 +337,11 @@ export async function loadDashboardData(
     mealsResult,
     trackingPlansResult,
   ] = await Promise.all([
-    client.from("subjects").select("id, name, status").eq("user_id", userId).order("name"),
-    client.from("tasks").select("id, title, subject_id, task_type, status, due_at").eq("user_id", userId).neq("status", "cancelled").order("due_at", { ascending: true, nullsFirst: false }),
-    client.from("evaluations").select("id, title, subject_id, evaluation_type, status, evaluation_at").eq("user_id", userId).neq("status", "cancelled").order("evaluation_at"),
+    client.from("subjects").select("id, name, status, subject_type, starts_on, ends_on").eq("user_id", userId).order("name"),
+    client.from("life_areas").select("id, name, slug").eq("user_id", userId).order("sort_order"),
+    client.from("tasks").select("id, title, subject_id, area_id, task_type, commitment_level, status, due_at, estimated_minutes").eq("user_id", userId).neq("status", "cancelled").order("due_at", { ascending: true, nullsFirst: false }),
+    client.from("evaluations").select("id, title, subject_id, evaluation_type, status, evaluation_at, grade, maximum_grade").eq("user_id", userId).neq("status", "cancelled").order("evaluation_at"),
+    client.from("study_sessions").select("subject_id, duration_minutes, started_at").eq("user_id", userId).order("started_at", { ascending: false }),
     client.from("habits").select("id, title, habit_type, target_amount, unit, system_key, frequency, description, difficult_day_version, is_optional").eq("user_id", userId).eq("active", true),
     client.from("goals").select("id, title, reason, current_value, target_value, unit, target_date").eq("user_id", userId).eq("status", "active").order("created_at"),
     client.from("body_measurements").select("recorded_on, height_cm, weight_kg, body_fat_percent, waist_cm, energy_level, sleep_hours, measurement_context").eq("user_id", userId).order("recorded_on", { ascending: false }).limit(1),
@@ -329,8 +356,10 @@ export async function loadDashboardData(
   ]);
 
   const subjects = unwrap<SubjectRow[]>(subjectsResult) ?? [];
+  const lifeAreas = unwrap<LifeAreaRow[]>(lifeAreasResult) ?? [];
   const taskRows = unwrap<TaskRow[]>(tasksResult) ?? [];
   const evaluationRows = unwrap<EvaluationRow[]>(evaluationsResult) ?? [];
+  const studySessions = unwrap<StudySessionRow[]>(studySessionsResult) ?? [];
   const habits = unwrap<HabitRow[]>(habitsResult) ?? [];
   const habitIds = habits.map((habit) => habit.id);
   const logs = habitIds.length === 0
@@ -340,23 +369,36 @@ export async function loadDashboardData(
       ) ?? []);
 
   const names = new Map(subjects.map((subject) => [subject.id, subject.name]));
+  const areaNames = new Map(lifeAreas.map((area) => [area.id, area.name]));
   const tasks: Task[] = [
     ...taskRows.map((row) => ({
       id: row.id,
       source: "task" as const,
       title: row.title,
-      subject: subjectName(names, row.subject_id),
+      subjectId: row.subject_id,
+      areaId: row.area_id,
+      subject: row.subject_id
+        ? subjectName(names, row.subject_id)
+        : (row.area_id && areaNames.get(row.area_id)) || "General",
       dueDate: datePart(row.due_at),
       type: taskType(row.task_type),
-      state: plannerState(row.status === "completed", row.due_at),
+      taskType: row.task_type,
+      commitmentLevel: row.commitment_level,
+      estimatedMinutes: row.estimated_minutes,
+      state: plannerState(row.status === "completed", row.due_at, row.commitment_level),
     })),
     ...evaluationRows.map((row) => ({
       id: row.id,
       source: "evaluation" as const,
       title: row.title,
+      subjectId: row.subject_id,
+      areaId: null,
       subject: subjectName(names, row.subject_id),
       dueDate: datePart(row.evaluation_at),
       type: evaluationType(row.evaluation_type),
+      taskType: "evaluation" as const,
+      commitmentLevel: "fixed" as const,
+      estimatedMinutes: null,
       state: plannerState(row.status === "completed", row.evaluation_at),
     })),
   ].sort((left, right) => {
@@ -366,18 +408,46 @@ export async function loadDashboardData(
   });
 
   const subjectSummaries: SubjectSummary[] = subjects.map((subject) => {
-    const related = tasks.filter((task) => task.subject === subject.name);
+    const related = tasks.filter((task) => task.subjectId === subject.id);
     const completed = related.filter((task) => task.state === "done").length;
     const next = related.find((task) => task.state !== "done");
+    const sessions = studySessions.filter((session) => session.subject_id === subject.id);
+    const nextEvaluation = evaluationRows.find((evaluation) =>
+      evaluation.subject_id === subject.id && evaluation.status !== "completed",
+    );
     return {
       id: subject.id,
       name: subject.name,
       status: subject.status,
+      subjectType: subject.subject_type,
+      startsOn: subject.starts_on,
+      endsOn: subject.ends_on,
       progress: related.length ? Math.round((completed / related.length) * 100) : 0,
       pendingItems: related.length - completed,
-      nextItem: next ? `${next.type} · ${next.dueDate ?? "sin fecha"}` : "Sin pendientes",
+      nextItem: next?.title ?? "Sin actividad registrada",
+      sessions: sessions.length,
+      studyMinutes: sessions.reduce((sum, session) => sum + Number(session.duration_minutes), 0),
+      nextEvaluation: nextEvaluation?.title ?? null,
     };
   });
+
+  const today = localDate();
+  const weekday = new Date(`${today}T12:00:00-05:00`).getDay();
+  const weekStart = addDaysToIsoDate(today, -(weekday === 0 ? 6 : weekday - 1));
+  const weeklySessions = studySessions.filter((session) => datePart(session.started_at)! >= weekStart);
+  const graded = evaluationRows.filter((evaluation) =>
+    evaluation.grade !== null && evaluation.maximum_grade !== null && Number(evaluation.maximum_grade) > 0,
+  );
+  const sameMaximum = graded.length > 0
+    && graded.every((evaluation) => Number(evaluation.maximum_grade) === Number(graded[0].maximum_grade));
+  const studyOverview = {
+    weeklySessions: weeklySessions.length,
+    weeklyMinutes: weeklySessions.reduce((sum, session) => sum + Number(session.duration_minutes), 0),
+    averageGrade: sameMaximum
+      ? graded.reduce((sum, evaluation) => sum + Number(evaluation.grade), 0) / graded.length
+      : null,
+    averageMaximum: sameMaximum ? Number(graded[0].maximum_grade) : null,
+  };
 
   const goals: GoalRecord[] = (unwrap<GoalRow[]>(goalsResult) ?? []).map((goal) => ({
     id: goal.id,
@@ -459,6 +529,8 @@ export async function loadDashboardData(
   return {
     tasks,
     subjects: subjectSummaries,
+    lifeAreas,
+    studyOverview,
     goals,
     bodyMeasurement,
     journalEntries,
@@ -473,33 +545,73 @@ export async function loadDashboardData(
   };
 }
 
-async function resolveSubject(client: SupabaseClient, userId: string, name: string) {
-  const normalized = name.trim() || "General";
-  const subjects = unwrap<SubjectRow[]>(
-    await client.from("subjects").select("id, name, status").eq("user_id", userId),
-  ) ?? [];
-  const existing = subjects.find((subject) =>
-    subject.name.localeCompare(normalized, "es", { sensitivity: "accent" }) === 0,
+async function ownedDestination(
+  client: SupabaseClient,
+  table: "subjects" | "life_areas" | "goals",
+  userId: string,
+  id: string,
+) {
+  const row = unwrap<{ id: string }>(
+    await client.from(table).select("id").eq("id", id).eq("user_id", userId).maybeSingle(),
   );
-  if (existing) return existing;
-  const inserted = unwrap<SubjectRow[]>(
-    await client.from("subjects").insert({ user_id: userId, name: normalized, status: "studying" }).select("id, name, status"),
+  if (!row) throw new Error("El destino elegido no existe en tu cuenta.");
+  return row.id;
+}
+
+export async function createSubject(
+  client: SupabaseClient,
+  userId: string,
+  input: { name: string; subjectType: SubjectType; status: SubjectSummary["status"] },
+) {
+  const name = input.name.trim();
+  if (!name) throw new Error("Escribe el nombre de la materia o estudio.");
+  const existing = unwrap<Array<{ id: string }>>(
+    await client.from("subjects").select("id").eq("user_id", userId).ilike("name", name),
+  ) ?? [];
+  if (existing[0]) return existing[0].id;
+  const inserted = unwrap<Array<{ id: string }>>(
+    await client.from("subjects").insert({
+      user_id: userId,
+      name,
+      subject_type: input.subjectType,
+      status: input.status,
+    }).select("id"),
   );
   if (!inserted?.[0]) throw new Error("No se pudo crear la materia.");
-  return inserted[0];
+  return inserted[0].id;
 }
 
 export async function createPlannerItem(
   client: SupabaseClient,
   userId: string,
-  input: { title: string; subject: string; dueDate: string | null; type: "Tarea" | "Examen" },
+  input: {
+    title: string;
+    destination: "subject" | "area" | "goal" | "general";
+    destinationId: string | null;
+    dueDate: string | null;
+    type: "Tarea" | "Examen" | "Proyecto";
+    commitmentLevel: "fixed" | "flexible" | "optional";
+    estimatedMinutes?: number | null;
+  },
 ) {
-  const subject = await resolveSubject(client, userId, input.subject);
+  if (input.destination !== "general" && !input.destinationId) {
+    throw new Error("Elige un destino para el registro.");
+  }
+  const subjectId = input.destination === "subject" && input.destinationId
+    ? await ownedDestination(client, "subjects", userId, input.destinationId)
+    : null;
+  const areaId = input.destination === "area" && input.destinationId
+    ? await ownedDestination(client, "life_areas", userId, input.destinationId)
+    : null;
+  const goalId = input.destination === "goal" && input.destinationId
+    ? await ownedDestination(client, "goals", userId, input.destinationId)
+    : null;
   if (input.type === "Examen") {
     if (!input.dueDate) throw new Error("El examen necesita una fecha.");
+    if (!subjectId) throw new Error("Elige una materia o estudio para el examen.");
     unwrap(await client.from("evaluations").insert({
       user_id: userId,
-      subject_id: subject.id,
+      subject_id: subjectId,
       title: input.title,
       evaluation_type: "exam",
       evaluation_at: `${input.dueDate}T12:00:00-05:00`,
@@ -508,12 +620,16 @@ export async function createPlannerItem(
   } else {
     unwrap(await client.from("tasks").insert({
       user_id: userId,
-      subject_id: subject.id,
+      subject_id: subjectId,
+      area_id: areaId,
+      goal_id: goalId,
       title: input.title,
-      task_type: "task",
+      task_type: input.type === "Proyecto" ? "project" : "task",
+      commitment_level: input.commitmentLevel,
       priority: "medium",
       status: "pending",
       due_at: input.dueDate ? `${input.dueDate}T18:00:00-05:00` : null,
+      estimated_minutes: input.estimatedMinutes ?? null,
     }));
   }
 }
@@ -523,6 +639,31 @@ export async function setPlannerItemCompleted(client: SupabaseClient, item: Task
     ? await client.from("evaluations").update({ status: completed ? "completed" : "upcoming" }).eq("id", item.id)
     : await client.from("tasks").update({ status: completed ? "completed" : "pending", completed_at: completed ? new Date().toISOString() : null }).eq("id", item.id);
   unwrap(result);
+}
+
+export async function skipFlexibleTask(
+  client: SupabaseClient,
+  userId: string,
+  item: Task,
+) {
+  if (item.source !== "task" || item.commitmentLevel === "fixed") {
+    throw new Error("Solo se pueden omitir tareas flexibles u opcionales.");
+  }
+  unwrap(await client.from("tasks").update({ status: "cancelled" }).eq("id", item.id).eq("user_id", userId));
+}
+
+export async function moveFlexibleTaskToToday(
+  client: SupabaseClient,
+  userId: string,
+  item: Task,
+) {
+  if (item.source !== "task" || item.commitmentLevel === "fixed") {
+    throw new Error("Esta tarea ya es obligatoria o programada.");
+  }
+  unwrap(await client.from("tasks").update({
+    commitment_level: "fixed",
+    due_at: `${localDate()}T18:00:00-05:00`,
+  }).eq("id", item.id).eq("user_id", userId));
 }
 
 export async function setHabitCheckin(client: SupabaseClient, userId: string, habitId: string, completed: boolean) {
@@ -712,12 +853,12 @@ export async function saveJournalEntry(
 export async function saveStudySession(
   client: SupabaseClient,
   userId: string,
-  input: { subject: string; skillName: string; durationMinutes: number; mode: "reading" | "guided" | "practice" | "independent" | "simulation"; notes: string },
+  input: { subjectId: string; skillName: string; durationMinutes: number; mode: "reading" | "guided" | "practice" | "independent" | "simulation"; notes: string },
 ) {
-  const subject = await resolveSubject(client, userId, input.subject);
+  const subjectId = await ownedDestination(client, "subjects", userId, input.subjectId);
   unwrap(await client.from("study_sessions").insert({
     user_id: userId,
-    subject_id: subject.id,
+    subject_id: subjectId,
     duration_minutes: input.durationMinutes,
     study_mode: input.mode,
     notes: input.notes || null,
@@ -779,7 +920,7 @@ async function ensureSubjectStatus(
   const normalized = name.trim();
   if (!normalized) return null;
   const subjects = unwrap<SubjectRow[]>(
-    await client.from("subjects").select("id, name, status").eq("user_id", userId),
+    await client.from("subjects").select("id, name, status, subject_type, starts_on, ends_on").eq("user_id", userId),
   ) ?? [];
   const existing = subjects.find((subject) =>
     subject.name.localeCompare(normalized, "es", { sensitivity: "accent" }) === 0,
@@ -791,7 +932,7 @@ async function ensureSubjectStatus(
     return { ...existing, status };
   }
   const inserted = unwrap<SubjectRow[]>(
-    await client.from("subjects").insert({ user_id: userId, name: normalized, status }).select("id, name, status"),
+    await client.from("subjects").insert({ user_id: userId, name: normalized, status }).select("id, name, status, subject_type, starts_on, ends_on"),
   );
   if (!inserted?.[0]) throw new Error("No se pudo crear la materia.");
   return inserted[0];
@@ -877,11 +1018,16 @@ async function persistSeasonSetup(
       await client.from("tasks").select("id").eq("user_id", userId).eq("title", input.firstTask.trim()).limit(1).maybeSingle(),
     );
     if (!existingTask) {
+      const firstSubject = input.currentSubjects[0]
+        ? await ensureSubjectStatus(client, userId, input.currentSubjects[0], "studying")
+        : null;
       await createPlannerItem(client, userId, {
         title: input.firstTask.trim(),
-        subject: input.currentSubjects[0] || "General",
+        destination: firstSubject ? "subject" : "general",
+        destinationId: firstSubject?.id ?? null,
         dueDate: null,
         type: "Tarea",
+        commitmentLevel: "fixed",
       });
     }
   }

@@ -59,7 +59,55 @@ test("keeps technical labels and fake academic progress out of the interface", a
   assert.doesNotMatch(page, /Supabase · núcleo real/);
   assert.doesNotMatch(page, /Versión 2 · RPG/);
   assert.doesNotMatch(page, /Bases de Datos · examen del viernes/);
-  assert.match(page, /nextExam && <section className="path-card panel">/);
+  assert.match(page, /Panel del estudiante/);
+  assert.match(page, /Aún no calculado/);
+});
+
+test("separates Agenda, current studies, projects and the future semester", async () => {
+  const [page, dashboard, types] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/supabase/dashboard.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/types.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, />Agenda<\/button>/);
+  assert.match(page, />Estudios<\/button>/);
+  assert.match(page, /Obligatorio o programado/);
+  assert.match(page, /Si tengo tiempo/);
+  assert.match(page, /Proyectos de aprendizaje/);
+  assert.match(page, /<details className="future-subjects panel">/);
+  assert.match(page, /Inicio por confirmar/);
+  assert.match(page, /Sin actividad registrada/);
+  assert.match(dashboard, /row\.commitment_level/);
+  assert.match(types, /SubjectType = "university" \| "course" \| "self_study"/);
+});
+
+test("does not create subjects from ambiguous free text and keeps flexible work non-overdue", async () => {
+  const [page, dashboard] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/supabase/dashboard.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.doesNotMatch(page, /Materia o área/);
+  assert.match(page, /Nueva materia o estudio/);
+  assert.match(page, /Área personal/);
+  assert.match(page, /Opcional · sin atraso/);
+  assert.match(dashboard, /if \(commitment !== "fixed"\) return "flexible"/);
+  assert.match(dashboard, /ownedDestination/);
+  assert.doesNotMatch(dashboard, /input\.subject\.trim\(\) \|\| "General"/);
+});
+
+test("ships one additive studies migration without changing RLS", async () => {
+  const migration = await readFile(
+    new URL("../supabase/migrations/202608130001_planner_studies_phase_one.sql", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(migration, /subject_type text not null default 'university'/);
+  assert.match(migration, /starts_on date/);
+  assert.match(migration, /ends_on date/);
+  assert.match(migration, /commitment_level text not null default 'fixed'/);
+  assert.doesNotMatch(migration, /drop table|truncate|disable row level security/i);
 });
 
 test("separates nutrition into a real tracking page and keeps empty cards aligned", async () => {
